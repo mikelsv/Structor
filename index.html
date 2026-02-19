@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Structor — 2D Map Editor</title>
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="toolbar">
+        <button id="tool-select" data-tool="select" class="active">Select</button>
+        <button id="tool-circle" data-tool="create-circle">Create Circle</button>
+        <button id="tool-square" data-tool="create-square">Create Square</button>
+        <button id="tool-connection" data-tool="create-connection">Create Connection</button>
+        <button id="add-layer">Add Layer</button>
+        <button id="new-map">New Map</button>
+        <button id="save-map">Save</button>
+        <button id="load-map">Load</button>
+        <input id="file-input" type="file" accept="application/json" hidden />
+        <label class="background-control">
+          Background path:
+          <input id="background-path" type="text" placeholder="assets/bg.png or URL" />
+        </label>
+        <button id="apply-background">Apply Background</button>
+      </header>
+
+      <main class="workspace">
+        <aside class="panel layers-panel">
+          <h3>Layers</h3>
+          <ul id="layers-list"></ul>
+        </aside>
+
+        <section class="editor-area">
+          <div class="editor-hint" id="editor-hint">Tool: Select. Wheel: zoom/scroll, Drag empty space: pan.</div>
+          <canvas id="editor-canvas" width="1400" height="800"></canvas>
+        </section>
+
+        <aside class="panel properties-panel">
+          <h3>Properties</h3>
+          <div id="selection-state">Nothing selected</div>
+          <form id="properties-form" class="properties-form" hidden>
+            <label>
+              ID
+              <input type="text" name="id" />
+            </label>
+            <label>
+              X
+              <input type="number" name="x" step="1" />
+            </label>
+            <label>
+              Y
+              <input type="number" name="y" step="1" />
+            </label>
+            <label data-field="radius">
+              Radius
+              <input type="number" name="radius" min="1" step="1" />
+            </label>
+            <label data-field="size">
+              Size
+              <input type="number" name="size" min="2" step="1" />
+            </label>
+            <label>
+              Layer
+              <select name="layerId"></select>
+            </label>
+            <button type="button" id="delete-object" class="danger">Delete Object</button>
+          </form>
+
+          <section class="connections-section">
+            <h4>Connections</h4>
+            <ul id="connections-list"></ul>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
