@@ -1,7 +1,23 @@
 import { allObjects, findObjectById, getState } from './state.js';
+import { buildMapImageUrl } from './fileManager.js';
 
 const bgImage = new Image();
 let bgLoadedPath = '';
+const imageCache = new Map();
+
+const getObjectImage = (obj) => {
+  if (obj.type !== 'image' || !obj.file) return null;
+  const src = buildMapImageUrl(obj.file);
+  if (!src) return null;
+
+  const cached = imageCache.get(obj.id);
+  if (cached?.src === src) return cached.image;
+
+  const image = new Image();
+  image.src = src;
+  imageCache.set(obj.id, { src, image });
+  return image;
+};
 
 const toScreen = (worldX, worldY, viewport) => ({
   x: worldX * viewport.zoom + viewport.offsetX,
@@ -71,7 +87,7 @@ export const hitTestObject = (worldX, worldY) => {
       const nx = (worldX - obj.x) / rx;
       const ny = (worldY - obj.y) / ry;
       if (nx * nx + ny * ny <= 1) return obj;
-    } else if (obj.type === 'square') {
+    } else if (obj.type === 'square' || obj.type === 'image') {
       const width = Number(obj.width) || Number(obj.size) || 50;
       const height = Number(obj.height) || Number(obj.size) || 50;
       if (
@@ -215,6 +231,21 @@ export const render = (canvas) => {
         ctx.beginPath();
         ctx.rect(pos.x - width / 2, pos.y - height / 2, width, height);
         ctx.fill();
+        ctx.stroke();
+      }
+
+      if (obj.type === 'image') {
+        const width = (Number(obj.width) || 128) * viewport.zoom;
+        const height = (Number(obj.height) || 128) * viewport.zoom;
+        const image = getObjectImage(obj);
+
+        ctx.beginPath();
+        ctx.rect(pos.x - width / 2, pos.y - height / 2, width, height);
+        if (image?.complete && image.naturalWidth > 0) {
+          ctx.drawImage(image, pos.x - width / 2, pos.y - height / 2, width, height);
+        } else {
+          ctx.fill();
+        }
         ctx.stroke();
       }
 

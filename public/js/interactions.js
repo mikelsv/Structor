@@ -10,6 +10,7 @@ import {
   setViewport,
   toggleObjectSelection
 } from './state.js';
+import { uploadImageForMap } from './fileManager.js';
 import { getObjectBounds, hitTestObject, worldPointFromMouse } from './renderer.js';
 
 const isInteractiveElement = (target) =>
@@ -108,6 +109,23 @@ const buildObjectAtDrag = (tool, start, end, shiftKey, altKey) => {
 };
 
 export const bindCanvasInteractions = (canvas) => {
+  canvas.addEventListener('dragover', (event) => {
+    event.preventDefault();
+  });
+
+  canvas.addEventListener('drop', async (event) => {
+    event.preventDefault();
+    const [file] = [...(event.dataTransfer?.files || [])];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    try {
+      const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
+      await uploadImageForMap({ file, x: point.x, y: point.y });
+    } catch (error) {
+      alert(error.message || 'Cannot upload image');
+    }
+  });
+
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 
   canvas.addEventListener('mousedown', (event) => {
