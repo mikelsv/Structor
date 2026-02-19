@@ -269,10 +269,11 @@ const drawConnectionPreview = (ctx, viewport, pendingConnectionFrom, drag) => {
   const hovered = drag.connectionToId ? findObjectById(drag.connectionToId) : null;
   const fromPoint = toScreen(from.x, from.y, viewport);
   const toPoint = hovered ? toScreen(hovered.x, hovered.y, viewport) : toScreen(drag.currentX, drag.currentY, viewport);
+  const isInvalidTarget = Boolean(drag.connectionInvalidTarget);
 
   ctx.save();
-  ctx.strokeStyle = '#a4ff8a';
-  ctx.fillStyle = '#a4ff8a';
+  ctx.strokeStyle = isInvalidTarget ? '#ff5c5c' : '#a4ff8a';
+  ctx.fillStyle = isInvalidTarget ? '#ff5c5c' : '#a4ff8a';
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 4]);
   drawArrow(ctx, fromPoint, toPoint);

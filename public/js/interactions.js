@@ -152,6 +152,7 @@ export const handleMouseDown = (canvas, event) => {
       state.drag.currentX = point.x;
       state.drag.currentY = point.y;
       state.drag.connectionToId = null;
+      state.drag.connectionInvalidTarget = false;
       selectObject(hit.id);
       return;
     }
@@ -266,10 +267,15 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     if (state.drag.mode === 'create-connection') {
+      const from = findObjectById(state.pendingConnectionFrom);
       const hovered = hitTestObject(point.x, point.y);
       state.drag.currentX = point.x;
       state.drag.currentY = point.y;
-      state.drag.connectionToId = hovered && hovered.id !== state.pendingConnectionFrom ? hovered.id : null;
+      const isCandidate = hovered && hovered.id !== state.pendingConnectionFrom;
+      state.drag.connectionToId = isCandidate ? hovered.id : null;
+      state.drag.connectionInvalidTarget = Boolean(
+        isCandidate && from && hovered.layerId !== from.layerId
+      );
       return;
     }
 
@@ -313,14 +319,17 @@ export const bindCanvasInteractions = (canvas) => {
 
     if (state.drag.mode === 'create-connection') {
       const fromId = state.pendingConnectionFrom;
+      const from = fromId ? findObjectById(fromId) : null;
       const hovered = hitTestObject(point.x, point.y);
       const toId = state.drag.connectionToId || (hovered && hovered.id !== fromId ? hovered.id : null);
-      if (fromId && toId) {
+      const to = toId ? findObjectById(toId) : null;
+      if (fromId && toId && from && to && from.layerId === to.layerId) {
         addConnection(fromId, toId);
         selectObject(toId);
       }
       state.pendingConnectionFrom = null;
       state.drag.connectionToId = null;
+      state.drag.connectionInvalidTarget = false;
     }
 
     state.drag.mode = null;
@@ -348,6 +357,7 @@ export const bindCanvasInteractions = (canvas) => {
         state.drag.objectId = null;
         state.drag.origins = null;
         state.drag.connectionToId = null;
+        state.drag.connectionInvalidTarget = false;
         state.pendingConnectionFrom = null;
         return;
       }
@@ -355,6 +365,7 @@ export const bindCanvasInteractions = (canvas) => {
       if (state.drag.mode === 'create-connection') {
         state.drag.mode = null;
         state.drag.connectionToId = null;
+        state.drag.connectionInvalidTarget = false;
         state.pendingConnectionFrom = null;
         return;
       }
