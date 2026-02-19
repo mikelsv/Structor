@@ -16,7 +16,7 @@ const getUiSignature = () => {
   const { map, activeLayerId, selectedObjectId, selectedObjectIds, cursor } = getState();
   const selected = selectedObjectId ? findObjectById(selectedObjectId) : null;
   const layerSignature = map.layers
-    .map((layer) => `${layer.id}:${layer.visible ? 1 : 0}:${layer.objects.length}`)
+    .map((layer) => `${layer.id}:${layer.name}:${layer.visible ? 1 : 0}:${layer.objects.length}`)
     .join('|');
   const selectedSignature = selected
     ? `${selected.id}:${selected.layerId}:${selected.x}:${selected.y}:${selected.radiusX ?? ''}:${selected.radiusY ?? ''}:${selected.width ?? ''}:${selected.height ?? ''}:${selected.scale ?? 1}:${selected.rotate ?? 0}`

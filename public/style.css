@@ -125,14 +125,79 @@ select {
 
 .layer-item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 6px;
   align-items: center;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
 }
 
 .layer-item.active {
-  outline: 1px solid var(--accent);
-  padding: 4px;
+  border-color: var(--accent);
+  background: rgba(94, 161, 255, 0.08);
+}
+
+.layer-item.is-hidden {
+  opacity: 0.72;
+}
+
+.layer-item.dragging {
+  opacity: 0.5;
+}
+
+.layer-item.drop-before {
+  border-top-color: #8cffea;
+}
+
+.layer-item.drop-after {
+  border-bottom-color: #8cffea;
+}
+
+.layer-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  cursor: grab;
+}
+
+.layer-main:active {
+  cursor: grabbing;
+}
+
+.layer-name {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 2px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layer-name-input {
+  width: 100%;
+  padding: 2px 4px;
+}
+
+.layer-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layer-arrows button {
+  min-width: 24px;
+  padding: 0 4px;
+  line-height: 1.1;
+}
+
+.layer-count {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 20px;
+  text-align: right;
 }
 
 
