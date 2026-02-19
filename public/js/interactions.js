@@ -188,7 +188,7 @@ export const bindCanvasInteractions = (canvas) => {
       return;
     }
 
-    if (event.button === 2 && state.tool === 'select') {
+    if (event.button === 2) {
       state.drag.mode = 'pan';
       state.drag.startX = event.clientX;
       state.drag.startY = event.clientY;
