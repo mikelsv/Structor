@@ -15,6 +15,7 @@ import {
 } from './state.js';
 
 const byId = (id) => document.getElementById(id);
+let layerOptionsSignature = '';
 
 export const refs = {
   canvas: byId('editor-canvas'),
@@ -121,13 +122,17 @@ export const renderProperties = () => {
 
   const form = refs.propertiesForm;
   const layerSelect = form.elements.layerId;
-  layerSelect.innerHTML = '';
-  map.layers.forEach((layer) => {
-    const option = document.createElement('option');
-    option.value = layer.id;
-    option.textContent = layer.id;
-    layerSelect.append(option);
-  });
+  const nextLayerOptionsSignature = map.layers.map((layer) => layer.id).join('|');
+  if (nextLayerOptionsSignature !== layerOptionsSignature) {
+    layerOptionsSignature = nextLayerOptionsSignature;
+    layerSelect.innerHTML = '';
+    map.layers.forEach((layer) => {
+      const option = document.createElement('option');
+      option.value = layer.id;
+      option.textContent = layer.id;
+      layerSelect.append(option);
+    });
+  }
 
   if (!selected) {
     refs.selectionState.textContent = selectedObjectIds.length ? `${selectedObjectIds.length} selected` : 'Nothing selected';

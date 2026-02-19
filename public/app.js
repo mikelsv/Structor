@@ -1,6 +1,7 @@
 import { createNewMap, loadMapFromDisk, saveMapToDisk } from './js/fileManager.js';
 import { bindCanvasInteractions } from './js/interactions.js';
 import { render } from './js/renderer.js';
+import { findObjectById, getState } from './js/state.js';
 import {
   attachLayerCreationPrompt,
   bindPropertiesForm,
@@ -11,11 +12,32 @@ import {
   renderProperties
 } from './js/ui.js';
 
+const getUiSignature = () => {
+  const { map, activeLayerId, selectedObjectId, selectedObjectIds } = getState();
+  const selected = selectedObjectId ? findObjectById(selectedObjectId) : null;
+  const layerSignature = map.layers
+    .map((layer) => `${layer.id}:${layer.visible ? 1 : 0}:${layer.objects.length}`)
+    .join('|');
+  const selectedSignature = selected
+    ? `${selected.id}:${selected.layerId}:${selected.x}:${selected.y}:${selected.radius ?? ''}:${selected.size ?? ''}`
+    : `none:${selectedObjectIds.join(',')}`;
+
+  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${map.connections.length}`;
+};
+
+let prevUiSignature = '';
+
 const redraw = () => {
   render(refs.canvas);
-  renderLayers();
-  renderProperties();
-  renderConnections();
+
+  const nextUiSignature = getUiSignature();
+  if (nextUiSignature !== prevUiSignature) {
+    prevUiSignature = nextUiSignature;
+    renderLayers();
+    renderProperties();
+    renderConnections();
+  }
+
   requestAnimationFrame(redraw);
 };
 
