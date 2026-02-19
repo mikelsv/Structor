@@ -95,12 +95,16 @@ export const createObjectWithBounds = (type, payload) => {
   if (type === 'circle') {
     base.x = payload.x;
     base.y = payload.y;
-    base.radius = payload.radius;
+    base.radiusX = Math.max(1, Number(payload.radiusX) || Number(payload.radius) || 30);
+    base.radiusY = Math.max(1, Number(payload.radiusY) || Number(payload.radius) || 30);
+    base.radius = Math.max(base.radiusX, base.radiusY);
   }
   if (type === 'square') {
     base.x = payload.x;
     base.y = payload.y;
-    base.size = payload.size;
+    base.width = Math.max(2, Number(payload.width) || Number(payload.size) || 50);
+    base.height = Math.max(2, Number(payload.height) || Number(payload.size) || 50);
+    base.size = Math.max(base.width, base.height);
   }
   upsertObject(base);
   selectObject(id);
@@ -212,7 +216,11 @@ export const validateAndNormalizeMap = (raw) => {
               y: Number(obj.y) || 0,
               layerId,
               radius: obj.type === 'circle' ? Math.max(1, Number(obj.radius) || 30) : undefined,
-              size: obj.type === 'square' ? Math.max(2, Number(obj.size) || 50) : undefined
+              radiusX: obj.type === 'circle' ? Math.max(1, Number(obj.radiusX) || Number(obj.radius) || 30) : undefined,
+              radiusY: obj.type === 'circle' ? Math.max(1, Number(obj.radiusY) || Number(obj.radius) || 30) : undefined,
+              size: obj.type === 'square' ? Math.max(2, Number(obj.size) || 50) : undefined,
+              width: obj.type === 'square' ? Math.max(2, Number(obj.width) || Number(obj.size) || 50) : undefined,
+              height: obj.type === 'square' ? Math.max(2, Number(obj.height) || Number(obj.size) || 50) : undefined
             }))
         : []
     };

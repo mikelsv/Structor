@@ -13,12 +13,16 @@ import {
 } from './ui.js';
 
 const redraw = () => {
+  const stateBackground = getState().map.background;
   render(refs.canvas);
   renderLayers();
   renderProperties();
   renderConnections();
-  if (document.activeElement !== refs.backgroundPath && refs.backgroundPath.value !== getState().map.background) {
-    refs.backgroundPath.value = getState().map.background;
+  if (refs.backgroundPath.dataset.lastStateValue !== stateBackground) {
+    if (document.activeElement !== refs.backgroundPath) {
+      refs.backgroundPath.value = stateBackground;
+    }
+    refs.backgroundPath.dataset.lastStateValue = stateBackground;
   }
   requestAnimationFrame(redraw);
 };

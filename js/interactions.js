@@ -47,33 +47,42 @@ const buildObjectAtDrag = (tool, start, end, shiftKey, altKey) => {
   const dy = end.y - start.y;
   const absX = Math.abs(dx);
   const absY = Math.abs(dy);
+  const width = Math.max(4, Math.round(absX * (altKey ? 1 : 2)));
+  const height = Math.max(4, Math.round(absY * (altKey ? 1 : 2)));
 
   if (tool === 'create-circle') {
-    const radius = Math.max(4, shiftKey ? Math.max(absX, absY) : Math.hypot(dx, dy));
+    const radiusX = shiftKey ? Math.max(4, Math.round(Math.max(absX, absY))) : Math.max(4, Math.round(absX));
+    const radiusY = shiftKey ? radiusX : Math.max(4, Math.round(absY));
     if (altKey) {
       return {
         type: 'circle',
-        x: Math.round(start.x + radius),
-        y: Math.round(start.y + radius),
-        radius: Math.round(radius)
+        x: Math.round(start.x + radiusX),
+        y: Math.round(start.y + radiusY),
+        radiusX,
+        radiusY,
+        radius: Math.max(radiusX, radiusY)
       };
     }
     return {
       type: 'circle',
       x: Math.round(start.x),
       y: Math.round(start.y),
-      radius: Math.round(radius)
+      radiusX,
+      radiusY,
+      radius: Math.max(radiusX, radiusY)
     };
   }
-
-  const side = shiftKey ? Math.max(absX, absY) : Math.max(absX, absY);
+  const nextWidth = shiftKey ? Math.max(width, height) : width;
+  const nextHeight = shiftKey ? nextWidth : height;
 
   if (altKey) {
     return {
       type: 'square',
-      x: Math.round(start.x + (dx >= 0 ? side / 2 : -side / 2)),
-      y: Math.round(start.y + (dy >= 0 ? side / 2 : -side / 2)),
-      size: Math.max(4, Math.round(side))
+      x: Math.round(start.x + (dx >= 0 ? nextWidth / 2 : -nextWidth / 2)),
+      y: Math.round(start.y + (dy >= 0 ? nextHeight / 2 : -nextHeight / 2)),
+      width: nextWidth,
+      height: nextHeight,
+      size: Math.max(nextWidth, nextHeight)
     };
   }
 
@@ -81,7 +90,9 @@ const buildObjectAtDrag = (tool, start, end, shiftKey, altKey) => {
     type: 'square',
     x: Math.round(start.x),
     y: Math.round(start.y),
-    size: Math.max(4, Math.round(side * 2))
+    width: nextWidth,
+    height: nextHeight,
+    size: Math.max(nextWidth, nextHeight)
   };
 };
 

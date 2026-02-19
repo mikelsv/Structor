@@ -40,19 +40,22 @@ export const worldPointFromMouse = (canvas, clientX, clientY) => {
 
 export const getObjectBounds = (obj) => {
   if (obj.type === 'circle') {
+    const rx = Number(obj.radiusX) || Number(obj.radius) || 30;
+    const ry = Number(obj.radiusY) || Number(obj.radius) || 30;
     return {
-      minX: obj.x - obj.radius,
-      minY: obj.y - obj.radius,
-      maxX: obj.x + obj.radius,
-      maxY: obj.y + obj.radius
+      minX: obj.x - rx,
+      minY: obj.y - ry,
+      maxX: obj.x + rx,
+      maxY: obj.y + ry
     };
   }
-  const half = obj.size / 2;
+  const width = Number(obj.width) || Number(obj.size) || 50;
+  const height = Number(obj.height) || Number(obj.size) || 50;
   return {
-    minX: obj.x - half,
-    minY: obj.y - half,
-    maxX: obj.x + half,
-    maxY: obj.y + half
+    minX: obj.x - width / 2,
+    minY: obj.y - height / 2,
+    maxX: obj.x + width / 2,
+    maxY: obj.y + height / 2
   };
 };
 
@@ -63,11 +66,20 @@ export const hitTestObject = (worldX, worldY) => {
   for (let index = objects.length - 1; index >= 0; index -= 1) {
     const obj = objects[index];
     if (obj.type === 'circle') {
-      const dist = Math.hypot(worldX - obj.x, worldY - obj.y);
-      if (dist <= obj.radius) return obj;
+      const rx = Number(obj.radiusX) || Number(obj.radius) || 30;
+      const ry = Number(obj.radiusY) || Number(obj.radius) || 30;
+      const nx = (worldX - obj.x) / rx;
+      const ny = (worldY - obj.y) / ry;
+      if (nx * nx + ny * ny <= 1) return obj;
     } else if (obj.type === 'square') {
-      const half = obj.size / 2;
-      if (worldX >= obj.x - half && worldX <= obj.x + half && worldY >= obj.y - half && worldY <= obj.y + half) {
+      const width = Number(obj.width) || Number(obj.size) || 50;
+      const height = Number(obj.height) || Number(obj.size) || 50;
+      if (
+        worldX >= obj.x - width / 2 &&
+        worldX <= obj.x + width / 2 &&
+        worldY >= obj.y - height / 2 &&
+        worldY <= obj.y + height / 2
+      ) {
         return obj;
       }
     }
@@ -90,22 +102,25 @@ const drawPreview = (ctx, viewport, drag, tool) => {
   ctx.setLineDash([7, 5]);
 
   if (tool === 'create-circle') {
-    const radius = Math.max(4 * viewport.zoom, keepRatio ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy));
-    const centerX = fromCorner ? start.x + radius : start.x;
-    const centerY = fromCorner ? start.y + radius : start.y;
+    const rx = Math.max(4 * viewport.zoom, keepRatio ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.abs(dx));
+    const ry = Math.max(4 * viewport.zoom, keepRatio ? rx : Math.abs(dy));
+    const centerX = fromCorner ? start.x + (dx >= 0 ? rx : -rx) : start.x;
+    const centerY = fromCorner ? start.y + (dy >= 0 ? ry : -ry) : start.y;
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.ellipse(centerX, centerY, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
 
   if (tool === 'create-square') {
-    const side = keepRatio ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.max(Math.abs(dx), Math.abs(dy));
-    const size = Math.max(4 * viewport.zoom, side * 2);
-    const centerX = fromCorner ? start.x + (dx >= 0 ? size / 2 : -size / 2) : start.x;
-    const centerY = fromCorner ? start.y + (dy >= 0 ? size / 2 : -size / 2) : start.y;
+    const width = Math.max(4 * viewport.zoom, Math.abs(dx) * (fromCorner ? 1 : 2));
+    const height = Math.max(4 * viewport.zoom, Math.abs(dy) * (fromCorner ? 1 : 2));
+    const nextWidth = keepRatio ? Math.max(width, height) : width;
+    const nextHeight = keepRatio ? nextWidth : height;
+    const centerX = fromCorner ? start.x + (dx >= 0 ? nextWidth / 2 : -nextWidth / 2) : start.x;
+    const centerY = fromCorner ? start.y + (dy >= 0 ? nextHeight / 2 : -nextHeight / 2) : start.y;
     ctx.beginPath();
-    ctx.rect(centerX - size / 2, centerY - size / 2, size, size);
+    ctx.rect(centerX - nextWidth / 2, centerY - nextHeight / 2, nextWidth, nextHeight);
     ctx.fill();
     ctx.stroke();
   }
@@ -186,16 +201,19 @@ export const render = (canvas) => {
       ctx.lineWidth = isSelected ? 3 : 2;
 
       if (obj.type === 'circle') {
+        const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * viewport.zoom;
+        const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * viewport.zoom;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, obj.radius * viewport.zoom, 0, Math.PI * 2);
+        ctx.ellipse(pos.x, pos.y, rx, ry, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
 
       if (obj.type === 'square') {
-        const size = obj.size * viewport.zoom;
+        const width = (Number(obj.width) || Number(obj.size) || 50) * viewport.zoom;
+        const height = (Number(obj.height) || Number(obj.size) || 50) * viewport.zoom;
         ctx.beginPath();
-        ctx.rect(pos.x - size / 2, pos.y - size / 2, size, size);
+        ctx.rect(pos.x - width / 2, pos.y - height / 2, width, height);
         ctx.fill();
         ctx.stroke();
       }
