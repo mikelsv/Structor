@@ -261,6 +261,24 @@ const drawPreview = (ctx, viewport, drag, tool) => {
   ctx.restore();
 };
 
+const drawConnectionPreview = (ctx, viewport, pendingConnectionFrom, drag) => {
+  if (drag.mode !== 'create-connection' || !pendingConnectionFrom) return;
+  const from = findObjectById(pendingConnectionFrom);
+  if (!from) return;
+
+  const hovered = drag.connectionToId ? findObjectById(drag.connectionToId) : null;
+  const fromPoint = toScreen(from.x, from.y, viewport);
+  const toPoint = hovered ? toScreen(hovered.x, hovered.y, viewport) : toScreen(drag.currentX, drag.currentY, viewport);
+
+  ctx.save();
+  ctx.strokeStyle = '#a4ff8a';
+  ctx.fillStyle = '#a4ff8a';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  drawArrow(ctx, fromPoint, toPoint);
+  ctx.restore();
+};
+
 const drawMarquee = (ctx, viewport, drag) => {
   if (drag.mode !== 'marquee') return;
   const start = toScreen(drag.startX, drag.startY, viewport);
@@ -305,6 +323,7 @@ export const render = (canvas) => {
     renderLayer(ctx, layer, viewport, selectedObjectIds, pendingConnectionFrom);
   }
 
+  drawConnectionPreview(ctx, viewport, pendingConnectionFrom, drag);
   drawPreview(ctx, viewport, drag, tool);
   drawMarquee(ctx, viewport, drag);
 };

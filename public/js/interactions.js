@@ -147,14 +147,12 @@ export const handleMouseDown = (canvas, event) => {
 
     if (state.tool === 'create-connection') {
       if (!hit) return;
-      if (!state.pendingConnectionFrom) {
-        state.pendingConnectionFrom = hit.id;
-        selectObject(hit.id);
-      } else {
-        addConnection(state.pendingConnectionFrom, hit.id);
-        state.pendingConnectionFrom = null;
-        selectObject(hit.id);
-      }
+      state.pendingConnectionFrom = hit.id;
+      state.drag.mode = 'create-connection';
+      state.drag.currentX = point.x;
+      state.drag.currentY = point.y;
+      state.drag.connectionToId = null;
+      selectObject(hit.id);
       return;
     }
 
@@ -267,6 +265,14 @@ export const bindCanvasInteractions = (canvas) => {
       return;
     }
 
+    if (state.drag.mode === 'create-connection') {
+      const hovered = hitTestObject(point.x, point.y);
+      state.drag.currentX = point.x;
+      state.drag.currentY = point.y;
+      state.drag.connectionToId = hovered && hovered.id !== state.pendingConnectionFrom ? hovered.id : null;
+      return;
+    }
+
     if (state.drag.mode === 'marquee' || state.drag.mode === 'create') {
       state.drag.currentX = point.x;
       state.drag.currentY = point.y;
@@ -277,6 +283,7 @@ export const bindCanvasInteractions = (canvas) => {
 
   window.addEventListener('mouseup', (event) => {
     const state = getState();
+    const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
 
     if (state.drag.mode === 'marquee') {
       const minX = Math.min(state.drag.startX, state.drag.currentX);
@@ -304,6 +311,18 @@ export const bindCanvasInteractions = (canvas) => {
       }
     }
 
+    if (state.drag.mode === 'create-connection') {
+      const fromId = state.pendingConnectionFrom;
+      const hovered = hitTestObject(point.x, point.y);
+      const toId = state.drag.connectionToId || (hovered && hovered.id !== fromId ? hovered.id : null);
+      if (fromId && toId) {
+        addConnection(fromId, toId);
+        selectObject(toId);
+      }
+      state.pendingConnectionFrom = null;
+      state.drag.connectionToId = null;
+    }
+
     state.drag.mode = null;
     state.drag.objectId = null;
     state.drag.origins = null;
@@ -328,6 +347,15 @@ export const bindCanvasInteractions = (canvas) => {
         state.drag.mode = null;
         state.drag.objectId = null;
         state.drag.origins = null;
+        state.drag.connectionToId = null;
+        state.pendingConnectionFrom = null;
+        return;
+      }
+
+      if (state.drag.mode === 'create-connection') {
+        state.drag.mode = null;
+        state.drag.connectionToId = null;
+        state.pendingConnectionFrom = null;
         return;
       }
 
