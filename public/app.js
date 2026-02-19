@@ -1,7 +1,6 @@
 import { createNewMap, loadMapFromDisk, saveMapToDisk } from './js/fileManager.js';
 import { bindCanvasInteractions } from './js/interactions.js';
 import { render } from './js/renderer.js';
-import { getState } from './js/state.js';
 import {
   attachLayerCreationPrompt,
   bindPropertiesForm,
@@ -13,17 +12,10 @@ import {
 } from './js/ui.js';
 
 const redraw = () => {
-  const stateBackground = getState().map.background;
   render(refs.canvas);
   renderLayers();
   renderProperties();
   renderConnections();
-  if (refs.backgroundPath.dataset.lastStateValue !== stateBackground) {
-    if (document.activeElement !== refs.backgroundPath) {
-      refs.backgroundPath.value = stateBackground;
-    }
-    refs.backgroundPath.dataset.lastStateValue = stateBackground;
-  }
   requestAnimationFrame(redraw);
 };
 
