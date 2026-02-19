@@ -2,12 +2,15 @@ import {
   addLayer,
   findObjectById,
   getState,
+  moveLayerDown,
+  moveLayerUp,
   removeObject,
   renameObjectId,
   selectObject,
   setActiveLayer,
   setTool,
   toggleLayerVisibility,
+  updateObjectLayer,
   upsertObject
 } from './state.js';
 
@@ -46,18 +49,22 @@ export const bindToolbar = ({ onAddLayer, onNewMap, onSave, onLoad }) => {
   byId('load-map').addEventListener('click', onLoad);
 };
 
-export const renderLayers = () => {
+export const renderLayersUI = () => {
   const { map, activeLayerId } = getState();
   refs.layersList.innerHTML = '';
 
-  map.layers.forEach((layer) => {
+  map.layers.forEach((layer, index) => {
     const item = document.createElement('li');
     item.className = `layer-item ${activeLayerId === layer.id ? 'active' : ''}`;
+    item.addEventListener('click', () => setActiveLayer(layer.id));
 
     const nameButton = document.createElement('button');
     nameButton.type = 'button';
     nameButton.textContent = layer.id;
-    nameButton.addEventListener('click', () => setActiveLayer(layer.id));
+    nameButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setActiveLayer(layer.id);
+    });
 
     const toggleButton = document.createElement('button');
     toggleButton.type = 'button';
@@ -67,13 +74,33 @@ export const renderLayers = () => {
       toggleLayerVisibility(layer.id);
     });
 
+    const upButton = document.createElement('button');
+    upButton.type = 'button';
+    upButton.textContent = '↑';
+    upButton.disabled = index === 0;
+    upButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      moveLayerUp(layer.id);
+    });
+
+    const downButton = document.createElement('button');
+    downButton.type = 'button';
+    downButton.textContent = '↓';
+    downButton.disabled = index === map.layers.length - 1;
+    downButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      moveLayerDown(layer.id);
+    });
+
     const count = document.createElement('span');
     count.textContent = `${layer.objects.length}`;
 
-    item.append(nameButton, toggleButton, count);
+    item.append(nameButton, toggleButton, upButton, downButton, count);
     refs.layersList.append(item);
   });
 };
+
+export const renderLayers = renderLayersUI;
 
 export const renderConnections = () => {
   const { map } = getState();
@@ -125,6 +152,7 @@ export const bindPropertiesForm = () => {
   refs.propertiesForm.addEventListener('input', (event) => {
     const selected = findObjectById(getState().selectedObjectId);
     if (!selected) return;
+    if (event.target?.name === 'layerId') return;
 
     const form = event.currentTarget;
     const updated = {
@@ -132,7 +160,7 @@ export const bindPropertiesForm = () => {
       id: form.elements.id.value.trim() || selected.id,
       x: Number(form.elements.x.value),
       y: Number(form.elements.y.value),
-      layerId: form.elements.layerId.value
+      layerId: selected.layerId
     };
 
     if (selected.type === 'circle') updated.radius = Math.max(1, Number(form.elements.radius.value) || selected.radius);
@@ -147,6 +175,12 @@ export const bindPropertiesForm = () => {
       selectObject(updated.id);
     }
     upsertObject(updated);
+  });
+
+  refs.propertiesForm.elements.layerId.addEventListener('change', (event) => {
+    const objectId = getState().selectedObjectId;
+    if (!objectId) return;
+    updateObjectLayer(objectId, event.target.value);
   });
 
   byId('delete-object').addEventListener('click', () => {
