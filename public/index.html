@@ -35,30 +35,64 @@
           <h3>Properties</h3>
           <div id="selection-state">Nothing selected</div>
           <form id="properties-form" class="properties-form" hidden>
-            <label>
-              ID
-              <input type="text" name="id" />
-            </label>
-            <label>
-              X
-              <input type="number" name="x" step="1" />
-            </label>
-            <label>
-              Y
-              <input type="number" name="y" step="1" />
-            </label>
-            <label data-field="radius">
-              Radius
-              <input type="number" name="radius" min="1" step="1" />
-            </label>
-            <label data-field="size">
-              Size
-              <input type="number" name="size" min="2" step="1" />
-            </label>
-            <label>
-              Layer
-              <select name="layerId"></select>
-            </label>
+            <div class="row single">
+              <label>
+                Type
+                <input type="text" name="type" readonly />
+              </label>
+            </div>
+            <div class="row single">
+              <label>
+                ID
+                <input type="text" name="id" />
+              </label>
+            </div>
+            <div class="row pair">
+              <label>
+                X
+                <input type="number" name="x" step="1" />
+              </label>
+              <label>
+                Y
+                <input type="number" name="y" step="1" />
+              </label>
+            </div>
+            <div class="row pair" data-field-group="radius">
+              <label>
+                RadiusX
+                <input type="number" name="radiusX" min="1" step="1" />
+              </label>
+              <label>
+                RadiusY
+                <input type="number" name="radiusY" min="1" step="1" />
+              </label>
+            </div>
+            <div class="row pair" data-field-group="size">
+              <label>
+                Width
+                <input type="number" name="width" min="2" step="1" />
+              </label>
+              <label>
+                Height
+                <input type="number" name="height" min="2" step="1" />
+              </label>
+            </div>
+            <div class="row pair">
+              <label>
+                Scale
+                <input type="number" name="scale" min="0.05" step="0.1" />
+              </label>
+              <label>
+                Rotate (°)
+                <input type="number" name="rotate" step="1" />
+              </label>
+            </div>
+            <div class="row single">
+              <label>
+                Layer
+                <select name="layerId"></select>
+              </label>
+            </div>
             <button type="button" id="delete-object" class="danger">Delete Object</button>
           </form>
 

@@ -26,6 +26,10 @@ const state = {
   selectedObjectId: null,
   selectedObjectIds: [],
   pendingConnectionFrom: null,
+  cursor: {
+    worldX: 0,
+    worldY: 0
+  },
   drag: {
     mode: null,
     objectId: null,
@@ -128,7 +132,7 @@ export const upsertObject = (obj) => {
 
 export const createObject = (type, x, y) => {
   const id = `node_${state.ids.object++}`;
-  const base = { type, id, x, y, layerId: state.activeLayerId };
+  const base = { type, id, x, y, scale: 1, rotate: 0, layerId: state.activeLayerId };
   if (type === 'circle') base.radius = 30;
   if (type === 'square') base.size = 50;
   upsertObject(base);
@@ -138,7 +142,13 @@ export const createObject = (type, x, y) => {
 
 export const createObjectWithBounds = (type, payload) => {
   const id = `node_${state.ids.object++}`;
-  const base = { type, id, layerId: state.activeLayerId };
+  const base = {
+    type,
+    id,
+    scale: Math.max(0.05, Number(payload.scale) || 1),
+    rotate: Number(payload.rotate) || 0,
+    layerId: state.activeLayerId
+  };
   if (type === 'circle') {
     base.x = payload.x;
     base.y = payload.y;
@@ -230,6 +240,11 @@ export const setMapFilePath = (filePath) => {
 
 export const getMapFilePath = () => state.mapFilePath;
 
+export const setCursorWorld = (worldX, worldY) => {
+  state.cursor.worldX = Math.round(Number(worldX) || 0);
+  state.cursor.worldY = Math.round(Number(worldY) || 0);
+};
+
 export const createImageObject = ({ id, file, x, y, width, height }) => {
   const nextId = id || `img_${String(state.ids.image++).padStart(2, '0')}`;
   const obj = {
@@ -240,6 +255,8 @@ export const createImageObject = ({ id, file, x, y, width, height }) => {
     y: Math.round(Number(y) || 0),
     width: Math.max(8, Number(width) || 128),
     height: Math.max(8, Number(height) || 128),
+    scale: 1,
+    rotate: 0,
     layerId: state.activeLayerId
   };
   upsertObject(obj);
@@ -289,6 +306,8 @@ export const validateAndNormalizeMap = (raw) => {
               id: String(obj.id),
               x: Number(obj.x) || 0,
               y: Number(obj.y) || 0,
+              scale: Math.max(0.05, Number(obj.scale) || 1),
+              rotate: Number(obj.rotate) || 0,
               layerId,
               radius: obj.type === 'circle' ? Math.max(1, Number(obj.radius) || 30) : undefined,
               radiusX: obj.type === 'circle' ? Math.max(1, Number(obj.radiusX) || Number(obj.radius) || 30) : undefined,

@@ -7,6 +7,7 @@ import {
   selectObject,
   selectObjects,
   setTool,
+  setCursorWorld,
   setViewport,
   toggleObjectSelection
 } from './state.js';
@@ -128,6 +129,12 @@ export const bindCanvasInteractions = (canvas) => {
 
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 
+
+  canvas.addEventListener('mousemove', (event) => {
+    const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
+    setCursorWorld(point.x, point.y);
+  });
+
   canvas.addEventListener('mousedown', (event) => {
     const state = getState();
     const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
@@ -191,6 +198,9 @@ export const bindCanvasInteractions = (canvas) => {
   });
 
   window.addEventListener('mousemove', (event) => {
+    const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
+    setCursorWorld(point.x, point.y);
+
     const state = getState();
     if (!state.drag.mode) return;
 
@@ -205,7 +215,6 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     if (state.drag.mode === 'move-selection') {
-      const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
       const dx = point.x - state.drag.startX;
       const dy = point.y - state.drag.startY;
       for (const origin of state.drag.origins || []) {
@@ -218,7 +227,6 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     if (state.drag.mode === 'marquee' || state.drag.mode === 'create') {
-      const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
       state.drag.currentX = point.x;
       state.drag.currentY = point.y;
       state.drag.modShift = event.shiftKey;
