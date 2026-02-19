@@ -4,6 +4,8 @@ import {
   getState,
   moveLayerDown,
   moveLayerUp,
+  renameLayer,
+  reorderLayers,
   removeObject,
   renameObjectId,
   selectObject,
@@ -17,6 +19,12 @@ import { getObjectBounds } from './renderer.js';
 
 const byId = (id) => document.getElementById(id);
 let layerOptionsSignature = '';
+let layerDragState = {
+  draggingLayerId: null,
+  fromIndex: -1,
+  overIndex: -1,
+  dropSide: 'after'
+};
 
 export const refs = {
   canvas: byId('editor-canvas'),
@@ -46,7 +54,7 @@ const getSelectionBounds = (objects) => {
 const ensureLayerOptions = () => {
   const { map } = getState();
   const layerSelect = refs.propertiesForm.elements.layerId;
-  const nextLayerOptionsSignature = map.layers.map((layer) => layer.id).join('|');
+  const nextLayerOptionsSignature = map.layers.map((layer) => `${layer.id}:${layer.name}`).join('|');
   if (nextLayerOptionsSignature === layerOptionsSignature) return;
 
   layerOptionsSignature = nextLayerOptionsSignature;
@@ -54,9 +62,18 @@ const ensureLayerOptions = () => {
   map.layers.forEach((layer) => {
     const option = document.createElement('option');
     option.value = layer.id;
-    option.textContent = layer.id;
+    option.textContent = layer.name;
     layerSelect.append(option);
   });
+};
+
+const resetLayerDragState = () => {
+  layerDragState = {
+    draggingLayerId: null,
+    fromIndex: -1,
+    overIndex: -1,
+    dropSide: 'after'
+  };
 };
 
 const fillSingleSelectionForm = (selected) => {
@@ -126,23 +143,130 @@ export const renderLayersUI = () => {
   map.layers.forEach((layer, index) => {
     const item = document.createElement('li');
     item.className = `layer-item ${activeLayerId === layer.id ? 'active' : ''}`;
+    if (!layer.visible) item.classList.add('is-hidden');
+    item.dataset.layerId = layer.id;
+    item.dataset.index = String(index);
     item.addEventListener('click', () => setActiveLayer(layer.id));
 
-    const nameButton = document.createElement('button');
-    nameButton.type = 'button';
-    nameButton.textContent = layer.id;
-    nameButton.addEventListener('click', (event) => {
+    const main = document.createElement('div');
+    main.className = 'layer-main';
+    main.draggable = true;
+
+    main.addEventListener('click', (event) => {
       event.stopPropagation();
       setActiveLayer(layer.id);
     });
 
+    main.addEventListener('dragstart', (event) => {
+      const dragEvent = event;
+      layerDragState.draggingLayerId = layer.id;
+      layerDragState.fromIndex = index;
+      layerDragState.overIndex = index;
+      layerDragState.dropSide = 'after';
+      item.classList.add('dragging');
+      dragEvent.dataTransfer.effectAllowed = 'move';
+      dragEvent.dataTransfer.setData('text/plain', layer.id);
+    });
+
+    main.addEventListener('dragend', () => {
+      resetLayerDragState();
+      renderLayersUI();
+    });
+
+    const nameButton = document.createElement('button');
+    nameButton.type = 'button';
+    nameButton.className = 'layer-name';
+    nameButton.textContent = layer.name;
+
+    const enterEditMode = () => {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'layer-name-input';
+      input.value = layer.name;
+      main.replaceChild(input, nameButton);
+      input.focus();
+      input.select();
+
+      let isHandled = false;
+      const commit = () => {
+        if (isHandled) return;
+        isHandled = true;
+        const success = renameLayer(layer.id, input.value);
+        if (!success) {
+          renderLayersUI();
+          return;
+        }
+        renderLayersUI();
+      };
+      const cancel = () => {
+        if (isHandled) return;
+        isHandled = true;
+        renderLayersUI();
+      };
+
+      input.addEventListener('keydown', (event) => {
+        event.stopPropagation();
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commit();
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancel();
+        }
+      });
+      input.addEventListener('blur', commit);
+    };
+
+    nameButton.addEventListener('dblclick', (event) => {
+      event.stopPropagation();
+      enterEditMode();
+    });
+
+    main.append(nameButton);
+
     const toggleButton = document.createElement('button');
     toggleButton.type = 'button';
+    toggleButton.className = 'layer-visibility';
     toggleButton.textContent = layer.visible ? 'Hide' : 'Show';
     toggleButton.addEventListener('click', (event) => {
       event.stopPropagation();
       toggleLayerVisibility(layer.id);
     });
+
+    item.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      if (!layerDragState.draggingLayerId) return;
+      const bounds = item.getBoundingClientRect();
+      const offsetY = event.clientY - bounds.top;
+      layerDragState.overIndex = index;
+      layerDragState.dropSide = offsetY < bounds.height / 2 ? 'before' : 'after';
+      item.classList.toggle('drop-before', layerDragState.dropSide === 'before');
+      item.classList.toggle('drop-after', layerDragState.dropSide === 'after');
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drop-before', 'drop-after');
+    });
+
+    item.addEventListener('drop', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (layerDragState.fromIndex < 0 || layerDragState.overIndex < 0) return;
+
+      let toIndex = layerDragState.overIndex;
+      if (layerDragState.dropSide === 'after') toIndex += 1;
+      if (layerDragState.fromIndex < toIndex) toIndex -= 1;
+
+      const changed = reorderLayers(layerDragState.fromIndex, toIndex);
+      item.classList.remove('drop-before', 'drop-after');
+      if (changed) {
+        renderLayersUI();
+      }
+    });
+
+    const arrows = document.createElement('div');
+    arrows.className = 'layer-arrows';
 
     const upButton = document.createElement('button');
     upButton.type = 'button';
@@ -163,9 +287,11 @@ export const renderLayersUI = () => {
     });
 
     const count = document.createElement('span');
+    count.className = 'layer-count';
     count.textContent = `${layer.objects.length}`;
 
-    item.append(nameButton, toggleButton, upButton, downButton, count);
+    arrows.append(upButton, downButton);
+    item.append(main, toggleButton, arrows, count);
     refs.layersList.append(item);
   });
 };
@@ -245,7 +371,7 @@ export const bindPropertiesForm = () => {
 };
 
 export const attachLayerCreationPrompt = () => {
-  const name = prompt('Layer id', `layer_${Date.now()}`);
+  const name = prompt('Layer name', `Layer ${Date.now()}`);
   if (!name) return;
   addLayer(name.trim());
 };

@@ -1,7 +1,8 @@
 const DEFAULT_LAYER_ID = 'layer_1';
 
-const makeLayer = (id) => ({
+const makeLayer = (id, name = id) => ({
   id,
+  name,
   visible: true,
   objects: []
 });
@@ -55,10 +56,32 @@ export const setTool = (tool) => {
 };
 
 export const addLayer = (name = null) => {
-  const id = name || `layer_${state.ids.layer++}`;
-  state.map.layers.push(makeLayer(id));
+  const cleanName = typeof name === 'string' ? name.trim() : '';
+  const id = `layer_${state.ids.layer++}`;
+  state.map.layers.push(makeLayer(id, cleanName || id));
   state.activeLayerId = id;
   return id;
+};
+
+export const renameLayer = (layerId, newName) => {
+  const trimmedName = typeof newName === 'string' ? newName.trim() : '';
+  if (!trimmedName) return false;
+
+  const index = state.map.layers.findIndex((layer) => layer.id === layerId);
+  if (index < 0) return false;
+
+  const layer = state.map.layers[index];
+  if (layer.name === trimmedName) return true;
+
+  state.map.layers = [
+    ...state.map.layers.slice(0, index),
+    {
+      ...layer,
+      name: trimmedName
+    },
+    ...state.map.layers.slice(index + 1)
+  ];
+  return true;
 };
 
 export const setActiveLayer = (layerId) => {
@@ -86,20 +109,22 @@ export const toggleLayerVisibility = (layerId) => {
 
 export const moveLayerUp = (layerId) => {
   const index = state.map.layers.findIndex((layer) => layer.id === layerId);
-  if (index <= 0) return false;
-
-  const nextLayers = [...state.map.layers];
-  [nextLayers[index - 1], nextLayers[index]] = [nextLayers[index], nextLayers[index - 1]];
-  state.map.layers = nextLayers;
-  return true;
+  return reorderLayers(index, index - 1);
 };
 
 export const moveLayerDown = (layerId) => {
   const index = state.map.layers.findIndex((layer) => layer.id === layerId);
-  if (index < 0 || index >= state.map.layers.length - 1) return false;
+  return reorderLayers(index, index + 1);
+};
+
+export const reorderLayers = (fromIndex, toIndex) => {
+  if (fromIndex === toIndex) return true;
+  if (fromIndex < 0 || fromIndex >= state.map.layers.length) return false;
+  if (toIndex < 0 || toIndex >= state.map.layers.length) return false;
 
   const nextLayers = [...state.map.layers];
-  [nextLayers[index], nextLayers[index + 1]] = [nextLayers[index + 1], nextLayers[index]];
+  const [movedLayer] = nextLayers.splice(fromIndex, 1);
+  nextLayers.splice(toIndex, 0, movedLayer);
   state.map.layers = nextLayers;
   return true;
 };
@@ -297,6 +322,7 @@ export const validateAndNormalizeMap = (raw) => {
     const layerId = String(layer.id || `layer_${index + 1}`);
     return {
       id: layerId,
+      name: String(layer.name || layerId),
       visible: layer.visible !== false,
       objects: Array.isArray(layer.objects)
         ? layer.objects
