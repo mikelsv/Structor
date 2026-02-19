@@ -13,16 +13,16 @@ import {
 } from './js/ui.js';
 
 const getUiSignature = () => {
-  const { map, activeLayerId, selectedObjectId, selectedObjectIds } = getState();
+  const { map, activeLayerId, selectedObjectId, selectedObjectIds, cursor } = getState();
   const selected = selectedObjectId ? findObjectById(selectedObjectId) : null;
   const layerSignature = map.layers
     .map((layer) => `${layer.id}:${layer.visible ? 1 : 0}:${layer.objects.length}`)
     .join('|');
   const selectedSignature = selected
-    ? `${selected.id}:${selected.layerId}:${selected.x}:${selected.y}:${selected.radius ?? ''}:${selected.size ?? ''}`
+    ? `${selected.id}:${selected.layerId}:${selected.x}:${selected.y}:${selected.radiusX ?? ''}:${selected.radiusY ?? ''}:${selected.width ?? ''}:${selected.height ?? ''}:${selected.scale ?? 1}:${selected.rotate ?? 0}`
     : `none:${selectedObjectIds.join(',')}`;
 
-  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${map.connections.length}`;
+  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${map.connections.length}#${cursor.worldX}:${cursor.worldY}`;
 };
 
 let prevUiSignature = '';

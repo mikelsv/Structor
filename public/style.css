@@ -135,20 +135,40 @@ select {
   padding: 4px;
 }
 
+
 .properties-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin-top: 10px;
 }
 
-.properties-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--muted);
+.properties-form .row {
+  display: grid;
+  gap: 6px;
 }
 
+.properties-form .row.single {
+  grid-template-columns: 1fr;
+}
+
+.properties-form .row.pair {
+  grid-template-columns: 1fr 1fr;
+}
+
+.properties-form label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.properties-form label input,
+.properties-form label select {
+  min-width: 0;
+}
 input,
 select {
   width: 100%;

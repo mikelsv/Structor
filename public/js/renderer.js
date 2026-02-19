@@ -24,6 +24,9 @@ const toScreen = (worldX, worldY, viewport) => ({
   y: worldY * viewport.zoom + viewport.offsetY
 });
 
+const getScale = (obj) => Math.max(0.05, Number(obj.scale) || 1);
+const getRotateRadians = (obj) => (Number(obj.rotate) || 0) * (Math.PI / 180);
+
 const drawArrow = (ctx, from, to) => {
   const headLength = 12;
   const dx = to.x - from.x;
@@ -54,10 +57,29 @@ export const worldPointFromMouse = (canvas, clientX, clientY) => {
   };
 };
 
+const rotatePoint = (x, y, angle) => ({
+  x: x * Math.cos(angle) - y * Math.sin(angle),
+  y: x * Math.sin(angle) + y * Math.cos(angle)
+});
+
+const getRotatedRectCorners = (obj, width, height) => {
+  const halfW = width / 2;
+  const halfH = height / 2;
+  const angle = getRotateRadians(obj);
+  return [
+    rotatePoint(-halfW, -halfH, angle),
+    rotatePoint(halfW, -halfH, angle),
+    rotatePoint(halfW, halfH, angle),
+    rotatePoint(-halfW, halfH, angle)
+  ].map((corner) => ({ x: corner.x + obj.x, y: corner.y + obj.y }));
+};
+
 export const getObjectBounds = (obj) => {
+  const scale = getScale(obj);
+
   if (obj.type === 'circle') {
-    const rx = Number(obj.radiusX) || Number(obj.radius) || 30;
-    const ry = Number(obj.radiusY) || Number(obj.radius) || 30;
+    const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * scale;
+    const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * scale;
     return {
       minX: obj.x - rx,
       minY: obj.y - ry,
@@ -65,13 +87,15 @@ export const getObjectBounds = (obj) => {
       maxY: obj.y + ry
     };
   }
-  const width = Number(obj.width) || Number(obj.size) || 50;
-  const height = Number(obj.height) || Number(obj.size) || 50;
+
+  const width = (Number(obj.width) || Number(obj.size) || 50) * scale;
+  const height = (Number(obj.height) || Number(obj.size) || 50) * scale;
+  const corners = getRotatedRectCorners(obj, width, height);
   return {
-    minX: obj.x - width / 2,
-    minY: obj.y - height / 2,
-    maxX: obj.x + width / 2,
-    maxY: obj.y + height / 2
+    minX: Math.min(...corners.map((p) => p.x)),
+    minY: Math.min(...corners.map((p) => p.y)),
+    maxX: Math.max(...corners.map((p) => p.x)),
+    maxY: Math.max(...corners.map((p) => p.y))
   };
 };
 
@@ -81,23 +105,20 @@ export const hitTestObject = (worldX, worldY) => {
 
   for (let index = objects.length - 1; index >= 0; index -= 1) {
     const obj = objects[index];
+    const scale = getScale(obj);
+    const angle = -getRotateRadians(obj);
+    const local = rotatePoint(worldX - obj.x, worldY - obj.y, angle);
+
     if (obj.type === 'circle') {
-      const rx = Number(obj.radiusX) || Number(obj.radius) || 30;
-      const ry = Number(obj.radiusY) || Number(obj.radius) || 30;
-      const nx = (worldX - obj.x) / rx;
-      const ny = (worldY - obj.y) / ry;
+      const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * scale;
+      const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * scale;
+      const nx = local.x / rx;
+      const ny = local.y / ry;
       if (nx * nx + ny * ny <= 1) return obj;
     } else if (obj.type === 'square' || obj.type === 'image') {
-      const width = Number(obj.width) || Number(obj.size) || 50;
-      const height = Number(obj.height) || Number(obj.size) || 50;
-      if (
-        worldX >= obj.x - width / 2 &&
-        worldX <= obj.x + width / 2 &&
-        worldY >= obj.y - height / 2 &&
-        worldY <= obj.y + height / 2
-      ) {
-        return obj;
-      }
+      const width = (Number(obj.width) || Number(obj.size) || 50) * scale;
+      const height = (Number(obj.height) || Number(obj.size) || 50) * scale;
+      if (Math.abs(local.x) <= width / 2 && Math.abs(local.y) <= height / 2) return obj;
     }
   }
   return null;
@@ -210,39 +231,42 @@ export const render = (canvas) => {
       const isSelected = selectedObjectIds.includes(obj.id);
       const isConnectionStart = obj.id === pendingConnectionFrom;
       const stroke = isSelected ? '#ffd166' : isConnectionStart ? '#a4ff8a' : '#74a2ff';
+      const scale = getScale(obj);
 
       ctx.save();
+      ctx.translate(pos.x, pos.y);
+      ctx.rotate(getRotateRadians(obj));
       ctx.strokeStyle = stroke;
       ctx.fillStyle = 'rgba(76, 116, 201, 0.25)';
       ctx.lineWidth = isSelected ? 3 : 2;
 
       if (obj.type === 'circle') {
-        const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * viewport.zoom;
-        const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * viewport.zoom;
+        const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * scale * viewport.zoom;
+        const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * scale * viewport.zoom;
         ctx.beginPath();
-        ctx.ellipse(pos.x, pos.y, rx, ry, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
 
       if (obj.type === 'square') {
-        const width = (Number(obj.width) || Number(obj.size) || 50) * viewport.zoom;
-        const height = (Number(obj.height) || Number(obj.size) || 50) * viewport.zoom;
+        const width = (Number(obj.width) || Number(obj.size) || 50) * scale * viewport.zoom;
+        const height = (Number(obj.height) || Number(obj.size) || 50) * scale * viewport.zoom;
         ctx.beginPath();
-        ctx.rect(pos.x - width / 2, pos.y - height / 2, width, height);
+        ctx.rect(-width / 2, -height / 2, width, height);
         ctx.fill();
         ctx.stroke();
       }
 
       if (obj.type === 'image') {
-        const width = (Number(obj.width) || 128) * viewport.zoom;
-        const height = (Number(obj.height) || 128) * viewport.zoom;
+        const width = (Number(obj.width) || 128) * scale * viewport.zoom;
+        const height = (Number(obj.height) || 128) * scale * viewport.zoom;
         const image = getObjectImage(obj);
 
         ctx.beginPath();
-        ctx.rect(pos.x - width / 2, pos.y - height / 2, width, height);
+        ctx.rect(-width / 2, -height / 2, width, height);
         if (image?.complete && image.naturalWidth > 0) {
-          ctx.drawImage(image, pos.x - width / 2, pos.y - height / 2, width, height);
+          ctx.drawImage(image, -width / 2, -height / 2, width, height);
         } else {
           ctx.fill();
         }
@@ -253,7 +277,7 @@ export const render = (canvas) => {
       ctx.font = '12px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(obj.id, pos.x, pos.y);
+      ctx.fillText(obj.id, 0, 0);
       ctx.restore();
     }
   }
