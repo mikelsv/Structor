@@ -1,9 +1,9 @@
 import {
   addConnection,
   createObjectWithBounds,
+  deleteSelected,
   findObjectById,
   getState,
-  removeObject,
   selectObject,
   selectObjects,
   setTool,
@@ -12,7 +12,7 @@ import {
   toggleObjectSelection
 } from './state.js';
 import { uploadImageForMap } from './fileManager.js';
-import { getObjectBounds, hitTestObject, worldPointFromMouse } from './renderer.js';
+import { getObjectBounds, hitTestConnection, hitTestObject, worldPointFromMouse } from './renderer.js';
 
 const isInteractiveElement = (target) =>
   target instanceof HTMLElement &&
@@ -127,92 +127,94 @@ export const bindCanvasInteractions = (canvas) => {
     }
   });
 
-  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+  const handleContextMenu = (event) => {
+    event.preventDefault();
+  };
 
-
-  canvas.addEventListener('mousemove', (event) => {
-    const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
-    setCursorWorld(point.x, point.y);
-  });
-
-  canvas.addEventListener('mousedown', (event) => {
+  const handleMouseDown = (event) => {
     const state = getState();
     const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
-    const hit = hitTestObject(point.x, point.y);
+    const hitObject = hitTestObject(point.x, point.y);
+    const hitConnection = hitTestConnection(point.x, point.y);
 
-    if (event.button === 0) {
-      if (state.tool === 'create-circle' || state.tool === 'create-square') {
-        state.drag.mode = 'create';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.currentX = point.x;
-        state.drag.currentY = point.y;
-        state.drag.modShift = event.shiftKey;
-        state.drag.modAlt = event.altKey;
-        return;
-      }
+    if (event.button === 2) {
+      event.preventDefault();
+      if (!hitObject) return;
 
-      if (state.tool === 'create-connection') {
-        if (!hit) return;
-        if (!state.pendingConnectionFrom) {
-          state.pendingConnectionFrom = hit.id;
-          selectObject(hit.id);
-        } else {
-          addConnection(state.pendingConnectionFrom, hit.id);
-          state.pendingConnectionFrom = null;
-          selectObject(hit.id);
-        }
-        return;
-      }
+      if (event.shiftKey) toggleObjectSelection(hitObject.id);
+      else if (!state.selectedObjectIds.includes(hitObject.id)) selectObject(hitObject.id);
 
-      if (state.tool !== 'select') return;
-      if (hit) {
-        if (event.shiftKey) toggleObjectSelection(hit.id);
-        else selectObject(hit.id);
+      state.drag.mode = 'move-selection';
+      state.drag.startX = point.x;
+      state.drag.startY = point.y;
+      state.drag.origins = state.selectedObjectIds
+        .map((id) => findObjectById(id))
+        .filter(Boolean)
+        .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
+      return;
+    }
 
-        state.drag.mode = 'move-selection';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.origins = state.selectedObjectIds
-          .map((id) => findObjectById(id))
-          .filter(Boolean)
-          .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
+    if (event.button !== 0) return;
+
+    if (state.tool === 'create-circle' || state.tool === 'create-square') {
+      state.drag.mode = 'create';
+      state.drag.startX = point.x;
+      state.drag.startY = point.y;
+      state.drag.currentX = point.x;
+      state.drag.currentY = point.y;
+      state.drag.modShift = event.shiftKey;
+      state.drag.modAlt = event.altKey;
+      return;
+    }
+
+    if (state.tool === 'create-connection') {
+      if (!hitObject) return;
+      if (!state.pendingConnectionFrom) {
+        state.pendingConnectionFrom = hitObject.id;
+        selectObject(hitObject.id);
       } else {
-        if (!event.shiftKey) selectObject(null);
-        state.drag.mode = 'marquee';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.currentX = point.x;
-        state.drag.currentY = point.y;
+        addConnection(state.pendingConnectionFrom, hitObject.id);
+        state.pendingConnectionFrom = null;
+        selectObject(hitObject.id);
       }
       return;
     }
 
-    if (event.button === 2 && state.tool === 'select') {
-      state.drag.mode = 'pan';
-      state.drag.startX = event.clientX;
-      state.drag.startY = event.clientY;
-      state.drag.originX = state.map.viewport.offsetX;
-      state.drag.originY = state.map.viewport.offsetY;
-    }
-  });
+    if (hitObject) {
+      if (event.shiftKey) toggleObjectSelection(hitObject.id);
+      else selectObject(hitObject.id);
 
-  window.addEventListener('mousemove', (event) => {
+      state.drag.mode = 'move-selection';
+      state.drag.startX = point.x;
+      state.drag.startY = point.y;
+      state.drag.origins = state.selectedObjectIds
+        .map((id) => findObjectById(id))
+        .filter(Boolean)
+        .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
+      return;
+    }
+
+    if (hitConnection) {
+      if (event.shiftKey) toggleObjectSelection(hitConnection.id);
+      else selectObject(hitConnection.id);
+      return;
+    }
+
+    if (state.tool !== 'select') return;
+    if (!event.shiftKey) selectObject(null);
+    state.drag.mode = 'marquee';
+    state.drag.startX = point.x;
+    state.drag.startY = point.y;
+    state.drag.currentX = point.x;
+    state.drag.currentY = point.y;
+  };
+
+  const handleMouseMove = (event) => {
     const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
     setCursorWorld(point.x, point.y);
 
     const state = getState();
     if (!state.drag.mode) return;
-
-    if (state.drag.mode === 'pan') {
-      const dx = event.clientX - state.drag.startX;
-      const dy = event.clientY - state.drag.startY;
-      setViewport({
-        offsetX: state.drag.originX + dx,
-        offsetY: state.drag.originY + dy
-      });
-      return;
-    }
 
     if (state.drag.mode === 'move-selection') {
       const dx = point.x - state.drag.startX;
@@ -232,7 +234,18 @@ export const bindCanvasInteractions = (canvas) => {
       state.drag.modShift = event.shiftKey;
       state.drag.modAlt = event.altKey;
     }
+  };
+
+  canvas.addEventListener('contextmenu', handleContextMenu);
+
+  canvas.addEventListener('mousemove', (event) => {
+    const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
+    setCursorWorld(point.x, point.y);
   });
+
+  canvas.addEventListener('mousedown', handleMouseDown);
+
+  window.addEventListener('mousemove', handleMouseMove);
 
   window.addEventListener('mouseup', (event) => {
     const state = getState();
@@ -299,11 +312,8 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     if (event.key === 'Delete') {
-      const selectedIds = [...state.selectedObjectIds];
-      if (!selectedIds.length) return;
       event.preventDefault();
-      selectedIds.forEach((id) => removeObject(id));
-      selectObject(null);
+      deleteSelected();
     }
   });
 };

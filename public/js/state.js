@@ -4,7 +4,8 @@ const makeLayer = (id, name = id) => ({
   id,
   name,
   visible: true,
-  objects: []
+  objects: [],
+  connections: []
 });
 
 export const createEmptyMap = () => ({
@@ -15,8 +16,7 @@ export const createEmptyMap = () => ({
     offsetX: 0,
     offsetY: 0
   },
-  layers: [makeLayer(DEFAULT_LAYER_ID)],
-  connections: []
+  layers: [makeLayer(DEFAULT_LAYER_ID)]
 });
 
 const state = {
@@ -42,13 +42,17 @@ const state = {
   ids: {
     object: 1,
     layer: 2,
-    image: 1
+    image: 1,
+    connection: 1
   }
 };
 
 export const getState = () => state;
 export const allObjects = () => state.map.layers.flatMap((layer) => layer.objects);
+export const allConnections = () => state.map.layers.flatMap((layer) => layer.connections || []);
 export const findObjectById = (id) => allObjects().find((obj) => obj.id === id);
+export const findConnectionById = (id) => allConnections().find((conn) => conn.id === id);
+export const findEntityById = (id) => findObjectById(id) || findConnectionById(id);
 
 export const setTool = (tool) => {
   state.tool = tool;
@@ -198,7 +202,7 @@ export const renameObjectId = (oldId, newId) => {
   const obj = findObjectById(oldId);
   if (!obj) return false;
   obj.id = newId;
-  state.map.connections.forEach((conn) => {
+  allConnections().forEach((conn) => {
     if (conn.from === oldId) conn.from = newId;
     if (conn.to === oldId) conn.to = newId;
   });
@@ -211,7 +215,9 @@ export const removeObject = (id) => {
     const len = layer.objects.length;
     layer.objects = layer.objects.filter((obj) => obj.id !== id);
     if (layer.objects.length !== len) {
-      state.map.connections = state.map.connections.filter((conn) => conn.from !== id && conn.to !== id);
+      state.map.layers.forEach((entry) => {
+        entry.connections = (entry.connections || []).filter((conn) => conn.from !== id && conn.to !== id);
+      });
       if (state.selectedObjectId === id) state.selectedObjectId = null;
       state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== id);
       return true;
@@ -226,13 +232,13 @@ export const selectObject = (id) => {
 };
 
 export const selectObjects = (ids) => {
-  const normalized = [...new Set(ids)].filter((id) => findObjectById(id));
+  const normalized = [...new Set(ids)].filter((id) => findEntityById(id));
   state.selectedObjectIds = normalized;
   state.selectedObjectId = normalized[0] || null;
 };
 
 export const toggleObjectSelection = (id) => {
-  if (!findObjectById(id)) return;
+  if (!findEntityById(id)) return;
   if (state.selectedObjectIds.includes(id)) {
     state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== id);
   } else {
@@ -254,9 +260,14 @@ export const setMap = (mapData) => {
     .map((obj) => Number.parseInt(String(obj.id).split('_')[1], 10))
     .filter(Number.isFinite);
   const layerIds = mapData.layers.map((layer) => Number.parseInt(String(layer.id).split('_')[1], 10)).filter(Number.isFinite);
+  const connectionIds = mapData.layers
+    .flatMap((layer) => layer.connections || [])
+    .map((conn) => Number.parseInt(String(conn.id).split('_')[1], 10))
+    .filter(Number.isFinite);
   state.ids.object = (objectIds.length ? Math.max(...objectIds) : 0) + 1;
   state.ids.layer = (layerIds.length ? Math.max(...layerIds) : 1) + 1;
   state.ids.image = (imageIds.length ? Math.max(...imageIds) : 0) + 1;
+  state.ids.connection = (connectionIds.length ? Math.max(...connectionIds) : 0) + 1;
 };
 
 export const setMapFilePath = (filePath) => {
@@ -299,9 +310,50 @@ export const setViewport = (nextViewport) => {
 
 export const addConnection = (fromId, toId) => {
   if (fromId === toId) return;
-  if (!findObjectById(fromId) || !findObjectById(toId)) return;
-  const exists = state.map.connections.some((conn) => conn.from === fromId && conn.to === toId);
-  if (!exists) state.map.connections.push({ from: fromId, to: toId });
+  const fromObject = findObjectById(fromId);
+  const toObject = findObjectById(toId);
+  if (!fromObject || !toObject) return;
+
+  const targetLayerId = fromObject.layerId || state.activeLayerId;
+  const targetLayer = state.map.layers.find((layer) => layer.id === targetLayerId);
+  if (!targetLayer) return;
+
+  targetLayer.connections = targetLayer.connections || [];
+  const exists = targetLayer.connections.some((conn) => conn.from === fromId && conn.to === toId);
+  if (!exists) {
+    targetLayer.connections.push({
+      id: `conn_${state.ids.connection++}`,
+      type: 'connection',
+      from: fromId,
+      to: toId,
+      layerId: targetLayerId
+    });
+  }
+};
+
+export const deleteSelected = () => {
+  const selectedIds = [...state.selectedObjectIds];
+  if (!selectedIds.length) return false;
+
+  let removed = false;
+  for (const id of selectedIds) {
+    const objectRemoved = removeObject(id);
+    if (objectRemoved) {
+      removed = true;
+      continue;
+    }
+
+    for (const layer of state.map.layers) {
+      const before = (layer.connections || []).length;
+      layer.connections = (layer.connections || []).filter((conn) => conn.id !== id);
+      if (layer.connections.length !== before) {
+        removed = true;
+      }
+    }
+  }
+
+  if (removed) selectObject(null);
+  return removed;
 };
 
 export const serializeMap = () => JSON.stringify(state.map, null, 2);
@@ -353,14 +405,36 @@ export const validateAndNormalizeMap = (raw) => {
                     ? Math.max(8, Number(obj.width) || 128)
                     : undefined
             }))
-        : []
+        : [],
+      connections: []
     };
   });
 
   const ids = new Set(map.layers.flatMap((layer) => layer.objects.map((obj) => obj.id)));
-  map.connections = Array.isArray(raw.connections)
-    ? raw.connections.filter((conn) => ids.has(conn.from) && ids.has(conn.to)).map((conn) => ({ from: conn.from, to: conn.to }))
-    : [];
+
+  const legacyConnections = Array.isArray(raw.connections) ? raw.connections : [];
+  const fallbackLayerId = map.layers[0]?.id;
+  for (const layer of map.layers) {
+    const sourceLayer = raw.layers.find((entry) => String(entry.id || '') === layer.id);
+    const layerConnections = Array.isArray(sourceLayer?.connections) ? sourceLayer.connections : [];
+
+    const normalizedLegacy = legacyConnections
+      .filter((conn) => ids.has(conn.from) && ids.has(conn.to))
+      .map((conn) => ({
+        ...conn,
+        layerId: String(conn.layerId || fallbackLayerId)
+      }));
+
+    layer.connections = [...layerConnections, ...normalizedLegacy.filter((conn) => conn.layerId === layer.id)]
+      .filter((conn) => ids.has(conn.from) && ids.has(conn.to))
+      .map((conn, index) => ({
+        id: String(conn.id || `conn_${index + 1}`),
+        type: 'connection',
+        from: String(conn.from),
+        to: String(conn.to),
+        layerId: layer.id
+      }));
+  }
 
   return map;
 };

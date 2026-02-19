@@ -21,8 +21,9 @@ const getUiSignature = () => {
   const selectedSignature = selected
     ? `${selected.id}:${selected.layerId}:${selected.x}:${selected.y}:${selected.radiusX ?? ''}:${selected.radiusY ?? ''}:${selected.width ?? ''}:${selected.height ?? ''}:${selected.scale ?? 1}:${selected.rotate ?? 0}`
     : `none:${selectedObjectIds.join(',')}`;
+  const connectionsCount = map.layers.reduce((total, layer) => total + (layer.connections || []).length, 0);
 
-  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${map.connections.length}#${cursor.worldX}:${cursor.worldY}`;
+  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${connectionsCount}#${cursor.worldX}:${cursor.worldY}`;
 };
 
 let prevUiSignature = '';

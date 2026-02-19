@@ -322,14 +322,14 @@ export const renderLayers = renderLayersUI;
 
 export const renderConnections = () => {
   const { map } = getState();
-  const visibleObjectIds = new Set(
-    map.layers.filter((layer) => layer.visible).flatMap((layer) => layer.objects.map((obj) => obj.id))
-  );
   refs.connectionsList.innerHTML = '';
-  for (const conn of map.connections.filter((entry) => visibleObjectIds.has(entry.from) && visibleObjectIds.has(entry.to))) {
-    const item = document.createElement('li');
-    item.textContent = `${conn.from} → ${conn.to}`;
-    refs.connectionsList.append(item);
+  for (const layer of map.layers) {
+    if (!layer.visible) continue;
+    for (const conn of layer.connections || []) {
+      const item = document.createElement('li');
+      item.textContent = `${conn.from} → ${conn.to}`;
+      refs.connectionsList.append(item);
+    }
   }
 };
 

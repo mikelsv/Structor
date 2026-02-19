@@ -1,4 +1,4 @@
-import { allObjects, findObjectById, getState } from './state.js';
+import { findObjectById, getState } from './state.js';
 import { buildMapImageUrl } from './fileManager.js';
 
 const bgImage = new Image();
@@ -100,8 +100,7 @@ export const getObjectBounds = (obj) => {
 };
 
 export const hitTestObject = (worldX, worldY) => {
-  const visibleLayers = new Set(getState().map.layers.filter((layer) => layer.visible).map((layer) => layer.id));
-  const objects = allObjects().filter((obj) => visibleLayers.has(obj.layerId));
+  const objects = getState().map.layers.filter((layer) => layer.visible).flatMap((layer) => layer.objects);
 
   for (let index = objects.length - 1; index >= 0; index -= 1) {
     const obj = objects[index];
@@ -122,6 +121,113 @@ export const hitTestObject = (worldX, worldY) => {
     }
   }
   return null;
+};
+
+const pointToSegmentDistance = (point, start, end) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+
+  const t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy);
+  const clamped = Math.max(0, Math.min(1, t));
+  const px = start.x + clamped * dx;
+  const py = start.y + clamped * dy;
+  return Math.hypot(point.x - px, point.y - py);
+};
+
+export const hitTestConnection = (worldX, worldY) => {
+  const { map } = getState();
+  const threshold = 8 / map.viewport.zoom;
+
+  for (let layerIndex = map.layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
+    const layer = map.layers[layerIndex];
+    if (!layer.visible) continue;
+
+    const connections = layer.connections || [];
+    for (let connIndex = connections.length - 1; connIndex >= 0; connIndex -= 1) {
+      const conn = connections[connIndex];
+      const from = findObjectById(conn.from);
+      const to = findObjectById(conn.to);
+      if (!from || !to) continue;
+      const distance = pointToSegmentDistance({ x: worldX, y: worldY }, { x: from.x, y: from.y }, { x: to.x, y: to.y });
+      if (distance <= threshold) return conn;
+    }
+  }
+
+  return null;
+};
+
+export const renderLayer = (ctx, layer, viewport, selectedObjectIds, pendingConnectionFrom) => {
+  for (const obj of layer.objects) {
+    const pos = toScreen(obj.x, obj.y, viewport);
+    const isSelected = selectedObjectIds.includes(obj.id);
+    const isConnectionStart = obj.id === pendingConnectionFrom;
+    const stroke = isSelected ? '#ffd166' : isConnectionStart ? '#a4ff8a' : '#74a2ff';
+    const scale = getScale(obj);
+
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    ctx.rotate(getRotateRadians(obj));
+    ctx.strokeStyle = stroke;
+    ctx.fillStyle = 'rgba(76, 116, 201, 0.25)';
+    ctx.lineWidth = isSelected ? 3 : 2;
+
+    if (obj.type === 'circle') {
+      const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * scale * viewport.zoom;
+      const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * scale * viewport.zoom;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    if (obj.type === 'square') {
+      const width = (Number(obj.width) || Number(obj.size) || 50) * scale * viewport.zoom;
+      const height = (Number(obj.height) || Number(obj.size) || 50) * scale * viewport.zoom;
+      ctx.beginPath();
+      ctx.rect(-width / 2, -height / 2, width, height);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    if (obj.type === 'image') {
+      const width = (Number(obj.width) || 128) * scale * viewport.zoom;
+      const height = (Number(obj.height) || 128) * scale * viewport.zoom;
+      const image = getObjectImage(obj);
+
+      ctx.beginPath();
+      ctx.rect(-width / 2, -height / 2, width, height);
+      if (image?.complete && image.naturalWidth > 0) {
+        ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      } else {
+        ctx.fill();
+      }
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#e9edf7';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(obj.id, 0, 0);
+    ctx.restore();
+  }
+
+  ctx.save();
+  for (const conn of layer.connections || []) {
+    const from = findObjectById(conn.from);
+    const to = findObjectById(conn.to);
+    if (!from || !to) continue;
+
+    const fromScreen = toScreen(from.x, from.y, viewport);
+    const toScreenPoint = toScreen(to.x, to.y, viewport);
+    const isSelected = selectedObjectIds.includes(conn.id);
+    ctx.strokeStyle = isSelected ? '#ffd166' : '#8db6ff';
+    ctx.fillStyle = isSelected ? '#ffd166' : '#8db6ff';
+    ctx.lineWidth = isSelected ? 4 : 2;
+    drawArrow(ctx, fromScreen, toScreenPoint);
+  }
+  ctx.restore();
 };
 
 const drawPreview = (ctx, viewport, drag, tool) => {
@@ -204,82 +310,9 @@ export const render = (canvas) => {
     }
   }
 
-  ctx.save();
-  ctx.strokeStyle = '#8db6ff';
-  ctx.fillStyle = '#8db6ff';
-  ctx.lineWidth = 2;
-
-  for (const conn of map.connections) {
-    const from = findObjectById(conn.from);
-    const to = findObjectById(conn.to);
-    if (!from || !to) continue;
-
-    const fromLayer = map.layers.find((l) => l.id === from.layerId);
-    const toLayer = map.layers.find((l) => l.id === to.layerId);
-    if (!fromLayer?.visible || !toLayer?.visible) continue;
-
-    const fromScreen = toScreen(from.x, from.y, viewport);
-    const toScreenPoint = toScreen(to.x, to.y, viewport);
-    drawArrow(ctx, fromScreen, toScreenPoint);
-  }
-  ctx.restore();
-
   for (const layer of map.layers) {
     if (!layer.visible) continue;
-    for (const obj of layer.objects) {
-      const pos = toScreen(obj.x, obj.y, viewport);
-      const isSelected = selectedObjectIds.includes(obj.id);
-      const isConnectionStart = obj.id === pendingConnectionFrom;
-      const stroke = isSelected ? '#ffd166' : isConnectionStart ? '#a4ff8a' : '#74a2ff';
-      const scale = getScale(obj);
-
-      ctx.save();
-      ctx.translate(pos.x, pos.y);
-      ctx.rotate(getRotateRadians(obj));
-      ctx.strokeStyle = stroke;
-      ctx.fillStyle = 'rgba(76, 116, 201, 0.25)';
-      ctx.lineWidth = isSelected ? 3 : 2;
-
-      if (obj.type === 'circle') {
-        const rx = (Number(obj.radiusX) || Number(obj.radius) || 30) * scale * viewport.zoom;
-        const ry = (Number(obj.radiusY) || Number(obj.radius) || 30) * scale * viewport.zoom;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      if (obj.type === 'square') {
-        const width = (Number(obj.width) || Number(obj.size) || 50) * scale * viewport.zoom;
-        const height = (Number(obj.height) || Number(obj.size) || 50) * scale * viewport.zoom;
-        ctx.beginPath();
-        ctx.rect(-width / 2, -height / 2, width, height);
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      if (obj.type === 'image') {
-        const width = (Number(obj.width) || 128) * scale * viewport.zoom;
-        const height = (Number(obj.height) || 128) * scale * viewport.zoom;
-        const image = getObjectImage(obj);
-
-        ctx.beginPath();
-        ctx.rect(-width / 2, -height / 2, width, height);
-        if (image?.complete && image.naturalWidth > 0) {
-          ctx.drawImage(image, -width / 2, -height / 2, width, height);
-        } else {
-          ctx.fill();
-        }
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = '#e9edf7';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(obj.id, 0, 0);
-      ctx.restore();
-    }
+    renderLayer(ctx, layer, viewport, selectedObjectIds, pendingConnectionFrom);
   }
 
   drawPreview(ctx, viewport, drag, tool);
