@@ -58,12 +58,57 @@ export const addLayer = (name = null) => {
 };
 
 export const setActiveLayer = (layerId) => {
+  const exists = state.map.layers.some((layer) => layer.id === layerId);
+  if (!exists) return false;
   state.activeLayerId = layerId;
+  return true;
 };
 
 export const toggleLayerVisibility = (layerId) => {
-  const layer = state.map.layers.find((entry) => entry.id === layerId);
-  if (layer) layer.visible = !layer.visible;
+  const index = state.map.layers.findIndex((entry) => entry.id === layerId);
+  if (index < 0) return false;
+
+  const layer = state.map.layers[index];
+  state.map.layers = [
+    ...state.map.layers.slice(0, index),
+    {
+      ...layer,
+      visible: !layer.visible
+    },
+    ...state.map.layers.slice(index + 1)
+  ];
+  return true;
+};
+
+export const moveLayerUp = (layerId) => {
+  const index = state.map.layers.findIndex((layer) => layer.id === layerId);
+  if (index <= 0) return false;
+
+  const nextLayers = [...state.map.layers];
+  [nextLayers[index - 1], nextLayers[index]] = [nextLayers[index], nextLayers[index - 1]];
+  state.map.layers = nextLayers;
+  return true;
+};
+
+export const moveLayerDown = (layerId) => {
+  const index = state.map.layers.findIndex((layer) => layer.id === layerId);
+  if (index < 0 || index >= state.map.layers.length - 1) return false;
+
+  const nextLayers = [...state.map.layers];
+  [nextLayers[index], nextLayers[index + 1]] = [nextLayers[index + 1], nextLayers[index]];
+  state.map.layers = nextLayers;
+  return true;
+};
+
+export const updateObjectLayer = (objectId, targetLayerId) => {
+  const targetLayer = state.map.layers.find((layer) => layer.id === targetLayerId);
+  if (!targetLayer) return false;
+
+  const obj = findObjectById(objectId);
+  if (!obj) return false;
+  if (obj.layerId === targetLayerId) return true;
+
+  return upsertObject({ ...obj, layerId: targetLayerId });
 };
 
 export const upsertObject = (obj) => {
