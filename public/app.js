@@ -1,7 +1,7 @@
-import { createNewMap, loadMapFromFile, saveMapToFile } from './fileManager.js';
-import { bindCanvasInteractions } from './interactions.js';
-import { render } from './renderer.js';
-import { getState } from './state.js';
+import { createNewMap, loadMapFromDisk, saveMapToDisk } from './js/fileManager.js';
+import { bindCanvasInteractions } from './js/interactions.js';
+import { render } from './js/renderer.js';
+import { getState } from './js/state.js';
 import {
   attachLayerCreationPrompt,
   bindPropertiesForm,
@@ -10,7 +10,7 @@ import {
   renderConnections,
   renderLayers,
   renderProperties
-} from './ui.js';
+} from './js/ui.js';
 
 const redraw = () => {
   const stateBackground = getState().map.background;
@@ -30,22 +30,24 @@ const redraw = () => {
 bindToolbar({
   onAddLayer: attachLayerCreationPrompt,
   onNewMap: () => createNewMap(),
-  onSave: () => saveMapToFile(),
-  onLoad: () => refs.fileInput.click()
+  onSave: async () => {
+    try {
+      await saveMapToDisk(refs.mapPath.value.trim());
+      alert('Map saved successfully.');
+    } catch (error) {
+      alert(`Cannot save map: ${error.message}`);
+    }
+  },
+  onLoad: async () => {
+    try {
+      await loadMapFromDisk(refs.mapPath.value.trim());
+    } catch (error) {
+      alert(`Cannot load map: ${error.message}`);
+    }
+  }
 });
 
 bindPropertiesForm();
 bindCanvasInteractions(refs.canvas);
-
-refs.fileInput.addEventListener('change', async (event) => {
-  const [file] = event.target.files || [];
-  if (!file) return;
-  try {
-    await loadMapFromFile(file);
-  } catch (error) {
-    alert(`Cannot load map: ${error.message}`);
-  }
-  event.target.value = '';
-});
 
 redraw();

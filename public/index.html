@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Structor — 2D Map Editor</title>
-    <link rel="stylesheet" href="./styles/main.css" />
+    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="app">
@@ -15,9 +15,9 @@
         <button id="tool-connection" data-tool="create-connection">Create Connection</button>
         <button id="add-layer">Add Layer</button>
         <button id="new-map">New Map</button>
+        <input id="map-path" type="text" placeholder="maps/example.json" />
         <button id="save-map">Save</button>
         <button id="load-map">Load</button>
-        <input id="file-input" type="file" accept="application/json" hidden />
         <label class="background-control">
           Background path:
           <input id="background-path" type="text" placeholder="assets/bg.png or URL" />
@@ -75,6 +75,6 @@
       </main>
     </div>
 
-    <script type="module" src="./js/app.js"></script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

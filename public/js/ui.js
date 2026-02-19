@@ -21,7 +21,7 @@ export const refs = {
   propertiesForm: byId('properties-form'),
   selectionState: byId('selection-state'),
   hint: byId('editor-hint'),
-  fileInput: byId('file-input'),
+  mapPath: byId('map-path'),
   backgroundPath: byId('background-path')
 };
 

@@ -11,14 +11,17 @@ Structor — минимальный, но расширяемый 2D-редакт
 SVG упростил бы выбор DOM-элементов, но для интерактивной сцены редактора Canvas в этом кейсе практичнее.
 
 ## Запуск
-1. Откройте `Structor/index.html` в браузере.
-2. (Опционально) если браузер ограничивает загрузку локальных ресурсов, запустите локальный сервер:
-   - `python3 -m http.server 8000`
-   - откройте `http://localhost:8000/Structor/`
+1. Установите зависимости:
+   - `npm install`
+2. Запустите сервер:
+   - `node server/server.js`
+3. Откройте редактор:
+   - `http://localhost:5600`
 
 ## Что реализовано
 - Создание новой карты.
-- Загрузка/сохранение JSON карты через File API.
+- Загрузка/сохранение JSON карты напрямую на диск через Node.js API (`/save`, `/load`).
+- Поле пути к файлу и кнопки Save/Load в тулбаре.
 - Фон по пути (URL/relative path).
 - Zoom (`Ctrl + колесо`), scroll (`колесо/Shift+колесо`), drag сцены ЛКМ по пустому месту.
 - Слои: создание, переключение, скрытие/показ.
@@ -27,12 +30,13 @@ SVG упростил бы выбор DOM-элементов, но для инт�
 - Стрелки обновляются при перемещении объектов.
 
 ## Архитектура
-- `js/state.js` — единое состояние редактора, операции над картой, JSON-валидация.
-- `js/renderer.js` — отрисовка canvas, hit-test и преобразования координат.
-- `js/interactions.js` — обработка мыши, drag/pan/zoom, логика инструментов.
-- `js/ui.js` — DOM-панели (toolbar/layers/properties/connections).
-- `js/fileManager.js` — New/Load/Save (File API).
-- `js/app.js` — композиция модулей и render loop.
+- `server/server.js` — Express сервер, static, API чтения/записи и проверка безопасных путей.
+- `public/app.js` — композиция модулей и render loop.
+- `public/js/state.js` — единое состояние редактора, операции над картой, JSON-валидация.
+- `public/js/renderer.js` — отрисовка canvas, hit-test и преобразования координат.
+- `public/js/interactions.js` — обработка мыши, drag/pan/zoom, логика инструментов.
+- `public/js/ui.js` — DOM-панели (toolbar/layers/properties/connections).
+- `public/js/fileManager.js` — New/Load/Save через HTTP API.
 
 ## JSON формат
 ```json
