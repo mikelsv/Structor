@@ -6,7 +6,6 @@ import {
   renameObjectId,
   selectObject,
   setActiveLayer,
-  setBackground,
   setTool,
   toggleLayerVisibility,
   upsertObject
@@ -21,8 +20,7 @@ export const refs = {
   propertiesForm: byId('properties-form'),
   selectionState: byId('selection-state'),
   hint: byId('editor-hint'),
-  mapPath: byId('map-path'),
-  backgroundPath: byId('background-path')
+  mapPath: byId('map-path')
 };
 
 const getToolLabel = (tool) => ({
@@ -46,10 +44,6 @@ export const bindToolbar = ({ onAddLayer, onNewMap, onSave, onLoad }) => {
   byId('new-map').addEventListener('click', onNewMap);
   byId('save-map').addEventListener('click', onSave);
   byId('load-map').addEventListener('click', onLoad);
-
-  byId('apply-background').addEventListener('click', () => {
-    setBackground(refs.backgroundPath.value.trim());
-  });
 };
 
 export const renderLayers = () => {

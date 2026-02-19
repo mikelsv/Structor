@@ -20,6 +20,7 @@ export const createEmptyMap = () => ({
 
 const state = {
   map: createEmptyMap(),
+  mapFilePath: '',
   activeLayerId: DEFAULT_LAYER_ID,
   tool: 'select',
   selectedObjectId: null,
@@ -35,7 +36,8 @@ const state = {
   },
   ids: {
     object: 1,
-    layer: 2
+    layer: 2,
+    image: 1
   }
 };
 
@@ -167,9 +169,37 @@ export const setMap = (mapData) => {
   state.pendingConnectionFrom = null;
 
   const objectIds = allObjects().map((obj) => Number.parseInt(String(obj.id).split('_')[1], 10)).filter(Number.isFinite);
+  const imageIds = allObjects()
+    .filter((obj) => obj.type === 'image')
+    .map((obj) => Number.parseInt(String(obj.id).split('_')[1], 10))
+    .filter(Number.isFinite);
   const layerIds = mapData.layers.map((layer) => Number.parseInt(String(layer.id).split('_')[1], 10)).filter(Number.isFinite);
   state.ids.object = (objectIds.length ? Math.max(...objectIds) : 0) + 1;
   state.ids.layer = (layerIds.length ? Math.max(...layerIds) : 1) + 1;
+  state.ids.image = (imageIds.length ? Math.max(...imageIds) : 0) + 1;
+};
+
+export const setMapFilePath = (filePath) => {
+  state.mapFilePath = typeof filePath === 'string' ? filePath : '';
+};
+
+export const getMapFilePath = () => state.mapFilePath;
+
+export const createImageObject = ({ id, file, x, y, width, height }) => {
+  const nextId = id || `img_${String(state.ids.image++).padStart(2, '0')}`;
+  const obj = {
+    type: 'image',
+    id: nextId,
+    file,
+    x: Math.round(Number(x) || 0),
+    y: Math.round(Number(y) || 0),
+    width: Math.max(8, Number(width) || 128),
+    height: Math.max(8, Number(height) || 128),
+    layerId: state.activeLayerId
+  };
+  upsertObject(obj);
+  selectObject(nextId);
+  return obj;
 };
 
 export const setBackground = (path) => {
@@ -208,7 +238,7 @@ export const validateAndNormalizeMap = (raw) => {
       visible: layer.visible !== false,
       objects: Array.isArray(layer.objects)
         ? layer.objects
-            .filter((obj) => obj && obj.id && (obj.type === 'circle' || obj.type === 'square'))
+            .filter((obj) => obj && obj.id && (obj.type === 'circle' || obj.type === 'square' || obj.type === 'image'))
             .map((obj) => ({
               type: obj.type,
               id: String(obj.id),
@@ -219,8 +249,19 @@ export const validateAndNormalizeMap = (raw) => {
               radiusX: obj.type === 'circle' ? Math.max(1, Number(obj.radiusX) || Number(obj.radius) || 30) : undefined,
               radiusY: obj.type === 'circle' ? Math.max(1, Number(obj.radiusY) || Number(obj.radius) || 30) : undefined,
               size: obj.type === 'square' ? Math.max(2, Number(obj.size) || 50) : undefined,
-              width: obj.type === 'square' ? Math.max(2, Number(obj.width) || Number(obj.size) || 50) : undefined,
-              height: obj.type === 'square' ? Math.max(2, Number(obj.height) || Number(obj.size) || 50) : undefined
+              height:
+                obj.type === 'square'
+                  ? Math.max(2, Number(obj.height) || Number(obj.size) || 50)
+                  : obj.type === 'image'
+                    ? Math.max(8, Number(obj.height) || 128)
+                    : undefined,
+              file: obj.type === 'image' ? String(obj.file || '') : undefined,
+              width:
+                obj.type === 'square'
+                  ? Math.max(2, Number(obj.width) || Number(obj.size) || 50)
+                  : obj.type === 'image'
+                    ? Math.max(8, Number(obj.width) || 128)
+                    : undefined
             }))
         : []
     };
