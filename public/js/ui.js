@@ -1,11 +1,13 @@
 import {
   addLayer,
   findObjectById,
+  findSelectableById,
   getState,
   moveLayerDown,
   moveLayerUp,
   renameLayer,
   reorderLayers,
+  removeConnection,
   removeObject,
   renameObjectId,
   selectObject,
@@ -98,27 +100,80 @@ const fillSingleSelectionForm = (selected) => {
   form.querySelector('[data-field-group="size"]').hidden = !isRectLike;
 };
 
-export const renderPropertiesPanel = (selectedObjects) => {
+const fillConnectionForm = (connection) => {
+  const form = refs.propertiesForm;
+  form.elements.type.value = 'connection';
+  form.elements.id.value = connection.id;
+  form.elements.x.value = connection.fromId;
+  form.elements.y.value = connection.toId;
+  form.elements.radiusX.value = '';
+  form.elements.radiusY.value = '';
+  form.elements.width.value = '';
+  form.elements.height.value = '';
+  form.elements.scale.value = '';
+  form.elements.rotate.value = '';
+  form.elements.layerId.value = connection.layerId;
+  form.querySelector('[data-field-group="radius"]').hidden = true;
+  form.querySelector('[data-field-group="size"]').hidden = true;
+};
+
+export const clearPropertiesPanel = () => {
+  const form = refs.propertiesForm;
+  form.elements.type.value = '';
+  form.elements.id.value = '';
+  form.elements.x.value = '';
+  form.elements.y.value = '';
+  form.elements.radiusX.value = '';
+  form.elements.radiusY.value = '';
+  form.elements.width.value = '';
+  form.elements.height.value = '';
+  form.elements.scale.value = '';
+  form.elements.rotate.value = '';
+  form.elements.layerId.value = '';
+  form.hidden = true;
+};
+
+export const updatePropertiesPanel = (selectedObject) => {
   ensureLayerOptions();
   const { cursor } = getState();
   const form = refs.propertiesForm;
 
-  if (!selectedObjects.length) {
+  if (!selectedObject) {
     refs.selectionState.textContent = `Cursor: worldX ${cursor.worldX}, worldY ${cursor.worldY}`;
-    form.hidden = true;
+    clearPropertiesPanel();
+    return;
+  }
+
+  refs.selectionState.textContent = `Selected: ${selectedObject.id} (${selectedObject.type})`;
+  form.hidden = false;
+
+  if (selectedObject.type === 'connection') {
+    fillConnectionForm(selectedObject);
+    return;
+  }
+
+  fillSingleSelectionForm(selectedObject);
+};
+
+export const renderPropertiesPanel = (selectedObjects) => {
+  if (!selectedObjects.length) {
+    updatePropertiesPanel(null);
     return;
   }
 
   if (selectedObjects.length > 1) {
-    const bounds = getSelectionBounds(selectedObjects);
-    refs.selectionState.textContent = `Selected: ${selectedObjects.length} | Bounding box: ${bounds.width} × ${bounds.height}`;
-    form.hidden = true;
+    const geometricSelection = selectedObjects.filter((entry) => entry.type !== 'connection');
+    if (geometricSelection.length) {
+      const bounds = getSelectionBounds(geometricSelection);
+      refs.selectionState.textContent = `Selected: ${selectedObjects.length} | Bounding box: ${bounds.width} × ${bounds.height}`;
+    } else {
+      refs.selectionState.textContent = `Selected: ${selectedObjects.length}`;
+    }
+    refs.propertiesForm.hidden = true;
     return;
   }
 
-  refs.selectionState.textContent = `Selected: ${selectedObjects[0].id} (${selectedObjects[0].type})`;
-  form.hidden = false;
-  fillSingleSelectionForm(selectedObjects[0]);
+  updatePropertiesPanel(selectedObjects[0]);
 };
 
 export const bindToolbar = ({ onAddLayer, onNewMap, onSave, onLoad }) => {
@@ -326,23 +381,25 @@ export const renderConnections = () => {
     map.layers.filter((layer) => layer.visible).flatMap((layer) => layer.objects.map((obj) => obj.id))
   );
   refs.connectionsList.innerHTML = '';
-  for (const conn of map.connections.filter((entry) => visibleObjectIds.has(entry.from) && visibleObjectIds.has(entry.to))) {
-    const item = document.createElement('li');
-    item.textContent = `${conn.from} → ${conn.to}`;
-    refs.connectionsList.append(item);
+  for (const layer of map.layers.filter((entry) => entry.visible)) {
+    for (const conn of (layer.connections || []).filter((entry) => visibleObjectIds.has(entry.fromId) && visibleObjectIds.has(entry.toId))) {
+      const item = document.createElement('li');
+      item.textContent = `${conn.fromId} → ${conn.toId}`;
+      refs.connectionsList.append(item);
+    }
   }
 };
 
 export const renderProperties = () => {
   const { selectedObjectIds } = getState();
-  const selectedObjects = selectedObjectIds.map((id) => findObjectById(id)).filter(Boolean);
+  const selectedObjects = selectedObjectIds.map((id) => findSelectableById(id)).filter(Boolean);
   renderPropertiesPanel(selectedObjects);
 };
 
 export const bindPropertiesForm = () => {
   refs.propertiesForm.addEventListener('input', (event) => {
-    const selected = findObjectById(getState().selectedObjectId);
-    if (!selected) return;
+    const selected = findSelectableById(getState().selectedObjectId);
+    if (!selected || selected.type === 'connection') return;
     if (event.target?.name === 'layerId' || event.target?.name === 'type') return;
 
     const form = event.currentTarget;
@@ -381,14 +438,16 @@ export const bindPropertiesForm = () => {
   });
 
   refs.propertiesForm.elements.layerId.addEventListener('change', (event) => {
-    const objectId = getState().selectedObjectId;
-    if (!objectId) return;
-    updateObjectLayer(objectId, event.target.value);
+    const selected = findSelectableById(getState().selectedObjectId);
+    if (!selected || selected.type === 'connection') return;
+    updateObjectLayer(selected.id, event.target.value);
   });
 
   byId('delete-object').addEventListener('click', () => {
-    const id = getState().selectedObjectId;
-    if (id) removeObject(id);
+    const selected = findSelectableById(getState().selectedObjectId);
+    if (!selected) return;
+    if (selected.type === 'connection') removeConnection(selected.id);
+    else removeObject(selected.id);
   });
 };
 

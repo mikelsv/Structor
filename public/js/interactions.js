@@ -2,7 +2,9 @@ import {
   addConnection,
   createObjectWithBounds,
   findObjectById,
+  findSelectableById,
   getState,
+  removeConnection,
   removeObject,
   selectObject,
   selectObjects,
@@ -12,7 +14,7 @@ import {
   toggleObjectSelection
 } from './state.js';
 import { uploadImageForMap } from './fileManager.js';
-import { getObjectBounds, hitTestObject, worldPointFromMouse } from './renderer.js';
+import { getObjectBounds, hitTestConnection, hitTestObject, worldPointFromMouse } from './renderer.js';
 
 const isInteractiveElement = (target) =>
   target instanceof HTMLElement &&
@@ -109,6 +111,103 @@ const buildObjectAtDrag = (tool, start, end, shiftKey, altKey) => {
   };
 };
 
+
+
+const findVisibleConnectionAt = (worldX, worldY) => {
+  const { map } = getState();
+  for (let layerIndex = map.layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
+    const layer = map.layers[layerIndex];
+    if (!layer.visible) continue;
+    const connections = layer.connections || [];
+    for (let i = connections.length - 1; i >= 0; i -= 1) {
+      const conn = connections[i];
+      if (hitTestConnection(worldX, worldY, conn)) return conn;
+    }
+  }
+  return null;
+};
+
+export const handleMouseDown = (canvas, event) => {
+  const state = getState();
+  const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
+  const hit = hitTestObject(point.x, point.y);
+  const hitConnection = state.tool === 'select' ? findVisibleConnectionAt(point.x, point.y) : null;
+
+  if (event.button === 0) {
+    if (state.tool === 'create-circle' || state.tool === 'create-square') {
+      state.drag.mode = 'create';
+      state.drag.startX = point.x;
+      state.drag.startY = point.y;
+      state.drag.currentX = point.x;
+      state.drag.currentY = point.y;
+      state.drag.modShift = event.shiftKey;
+      state.drag.modAlt = event.altKey;
+      return;
+    }
+
+    if (state.tool === 'create-connection') {
+      if (!hit) return;
+      if (!state.pendingConnectionFrom) {
+        state.pendingConnectionFrom = hit.id;
+        selectObject(hit.id);
+      } else {
+        addConnection(state.pendingConnectionFrom, hit.id);
+        state.pendingConnectionFrom = null;
+        selectObject(hit.id);
+      }
+      return;
+    }
+
+    if (state.tool !== 'select') return;
+    if (hit) {
+      if (event.shiftKey) toggleObjectSelection(hit.id);
+      else selectObject(hit.id);
+
+      state.drag.mode = 'move-selection';
+      state.drag.startX = point.x;
+      state.drag.startY = point.y;
+      state.drag.origins = state.selectedObjectIds
+        .map((id) => findObjectById(id))
+        .filter(Boolean)
+        .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
+      return;
+    }
+
+    if (hitConnection) {
+      selectObject(hitConnection.id);
+      return;
+    }
+
+    if (!event.shiftKey) selectObject(null);
+    state.drag.mode = 'marquee';
+    state.drag.startX = point.x;
+    state.drag.startY = point.y;
+    state.drag.currentX = point.x;
+    state.drag.currentY = point.y;
+    return;
+  }
+
+  if (event.button === 2) {
+    state.drag.mode = 'pan';
+    state.drag.startX = event.clientX;
+    state.drag.startY = event.clientY;
+    state.drag.originX = state.map.viewport.offsetX;
+    state.drag.originY = state.map.viewport.offsetY;
+  }
+};
+
+export const deleteSelected = () => {
+  const selected = findSelectableById(getState().selectedObjectId);
+  if (!selected) return;
+  if (selected.type === 'connection') {
+    removeConnection(selected.id);
+    selectObject(null);
+    return;
+  }
+  removeObject(selected.id);
+  selectObject(null);
+};
+
 export const bindCanvasInteractions = (canvas) => {
   canvas.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -136,65 +235,7 @@ export const bindCanvasInteractions = (canvas) => {
   });
 
   canvas.addEventListener('mousedown', (event) => {
-    const state = getState();
-    const point = worldPointFromMouse(canvas, event.clientX, event.clientY);
-    const hit = hitTestObject(point.x, point.y);
-
-    if (event.button === 0) {
-      if (state.tool === 'create-circle' || state.tool === 'create-square') {
-        state.drag.mode = 'create';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.currentX = point.x;
-        state.drag.currentY = point.y;
-        state.drag.modShift = event.shiftKey;
-        state.drag.modAlt = event.altKey;
-        return;
-      }
-
-      if (state.tool === 'create-connection') {
-        if (!hit) return;
-        if (!state.pendingConnectionFrom) {
-          state.pendingConnectionFrom = hit.id;
-          selectObject(hit.id);
-        } else {
-          addConnection(state.pendingConnectionFrom, hit.id);
-          state.pendingConnectionFrom = null;
-          selectObject(hit.id);
-        }
-        return;
-      }
-
-      if (state.tool !== 'select') return;
-      if (hit) {
-        if (event.shiftKey) toggleObjectSelection(hit.id);
-        else selectObject(hit.id);
-
-        state.drag.mode = 'move-selection';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.origins = state.selectedObjectIds
-          .map((id) => findObjectById(id))
-          .filter(Boolean)
-          .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
-      } else {
-        if (!event.shiftKey) selectObject(null);
-        state.drag.mode = 'marquee';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.currentX = point.x;
-        state.drag.currentY = point.y;
-      }
-      return;
-    }
-
-    if (event.button === 2) {
-      state.drag.mode = 'pan';
-      state.drag.startX = event.clientX;
-      state.drag.startY = event.clientY;
-      state.drag.originX = state.map.viewport.offsetX;
-      state.drag.originY = state.map.viewport.offsetY;
-    }
+    handleMouseDown(canvas, event);
   });
 
   window.addEventListener('mousemove', (event) => {
@@ -299,11 +340,8 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     if (event.key === 'Delete') {
-      const selectedIds = [...state.selectedObjectIds];
-      if (!selectedIds.length) return;
       event.preventDefault();
-      selectedIds.forEach((id) => removeObject(id));
-      selectObject(null);
+      deleteSelected();
     }
   });
 };

@@ -1,7 +1,7 @@
 import { createNewMap, loadMapFromDisk, saveMapToDisk } from './js/fileManager.js';
 import { bindCanvasInteractions } from './js/interactions.js';
 import { render } from './js/renderer.js';
-import { findObjectById, getState } from './js/state.js';
+import { findSelectableById, getState } from './js/state.js';
 import {
   attachLayerCreationPrompt,
   bindPropertiesForm,
@@ -14,7 +14,7 @@ import {
 
 const getUiSignature = () => {
   const { map, activeLayerId, selectedObjectId, selectedObjectIds, cursor } = getState();
-  const selected = selectedObjectId ? findObjectById(selectedObjectId) : null;
+  const selected = selectedObjectId ? findSelectableById(selectedObjectId) : null;
   const layerSignature = map.layers
     .map((layer) => `${layer.id}:${layer.name}:${layer.visible ? 1 : 0}:${layer.objects.length}`)
     .join('|');
@@ -22,7 +22,8 @@ const getUiSignature = () => {
     ? `${selected.id}:${selected.layerId}:${selected.x}:${selected.y}:${selected.radiusX ?? ''}:${selected.radiusY ?? ''}:${selected.width ?? ''}:${selected.height ?? ''}:${selected.scale ?? 1}:${selected.rotate ?? 0}`
     : `none:${selectedObjectIds.join(',')}`;
 
-  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${map.connections.length}#${cursor.worldX}:${cursor.worldY}`;
+  const connectionCount = map.layers.reduce((total, layer) => total + (layer.connections || []).length, 0);
+  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${connectionCount}#${cursor.worldX}:${cursor.worldY}`;
 };
 
 let prevUiSignature = '';
