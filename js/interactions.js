@@ -3,8 +3,10 @@ import {
   createObjectWithBounds,
   findObjectById,
   getState,
+  removeObject,
   selectObject,
   selectObjects,
+  setTool,
   setViewport,
   toggleObjectSelection
 } from './state.js';
@@ -13,6 +15,15 @@ import { getObjectBounds, hitTestObject, worldPointFromMouse } from './renderer.
 const isInteractiveElement = (target) =>
   target instanceof HTMLElement &&
   (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+
+const syncSelectToolUi = () => {
+  const selectButton = document.querySelector('[data-tool="select"]');
+  if (selectButton) {
+    document.querySelectorAll('[data-tool]').forEach((entry) => entry.classList.toggle('active', entry === selectButton));
+  }
+  const hint = document.getElementById('editor-hint');
+  if (hint) hint.textContent = 'Tool: Select.';
+};
 
 const clampZoom = (zoom) => Math.max(0.2, Math.min(4, zoom));
 
@@ -131,11 +142,16 @@ export const bindCanvasInteractions = (canvas) => {
 
       if (state.tool !== 'select') return;
       if (hit) {
-        if (event.shiftKey) {
-          toggleObjectSelection(hit.id);
-        } else {
-          selectObject(hit.id);
-        }
+        if (event.shiftKey) toggleObjectSelection(hit.id);
+        else selectObject(hit.id);
+
+        state.drag.mode = 'move-selection';
+        state.drag.startX = point.x;
+        state.drag.startY = point.y;
+        state.drag.origins = state.selectedObjectIds
+          .map((id) => findObjectById(id))
+          .filter(Boolean)
+          .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
       } else {
         if (!event.shiftKey) selectObject(null);
         state.drag.mode = 'marquee';
@@ -148,22 +164,11 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     if (event.button === 2 && state.tool === 'select') {
-      if (hit) {
-        if (!state.selectedObjectIds.includes(hit.id)) selectObject(hit.id);
-        state.drag.mode = 'move-selection';
-        state.drag.startX = point.x;
-        state.drag.startY = point.y;
-        state.drag.origins = state.selectedObjectIds
-          .map((id) => findObjectById(id))
-          .filter(Boolean)
-          .map((obj) => ({ id: obj.id, x: obj.x, y: obj.y }));
-      } else {
-        state.drag.mode = 'pan';
-        state.drag.startX = event.clientX;
-        state.drag.startY = event.clientY;
-        state.drag.originX = state.map.viewport.offsetX;
-        state.drag.originY = state.map.viewport.offsetY;
-      }
+      state.drag.mode = 'pan';
+      state.drag.startX = event.clientX;
+      state.drag.startY = event.clientY;
+      state.drag.originX = state.map.viewport.offsetX;
+      state.drag.originY = state.map.viewport.offsetY;
     }
   });
 
@@ -246,4 +251,33 @@ export const bindCanvasInteractions = (canvas) => {
     },
     { passive: false }
   );
+
+  window.addEventListener('keydown', (event) => {
+    if (isInteractiveElement(event.target)) return;
+    const state = getState();
+
+    if (event.key === 'Escape') {
+      if (state.drag.mode === 'create') {
+        state.drag.mode = null;
+        state.drag.objectId = null;
+        state.drag.origins = null;
+        return;
+      }
+
+      if (state.tool !== 'select') {
+        event.preventDefault();
+        setTool('select');
+        syncSelectToolUi();
+      }
+      return;
+    }
+
+    if (event.key === 'Delete') {
+      const selectedIds = [...state.selectedObjectIds];
+      if (!selectedIds.length) return;
+      event.preventDefault();
+      selectedIds.forEach((id) => removeObject(id));
+      selectObject(null);
+    }
+  });
 };
