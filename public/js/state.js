@@ -4,7 +4,8 @@ const makeLayer = (id, name = id) => ({
   id,
   name,
   visible: true,
-  objects: []
+  objects: [],
+  connections: []
 });
 
 export const createEmptyMap = () => ({
@@ -48,7 +49,10 @@ const state = {
 
 export const getState = () => state;
 export const allObjects = () => state.map.layers.flatMap((layer) => layer.objects);
+export const allConnections = () => state.map.layers.flatMap((layer) => layer.connections || []);
 export const findObjectById = (id) => allObjects().find((obj) => obj.id === id);
+export const findConnectionById = (id) => allConnections().find((conn) => conn.id === id);
+export const findSelectableById = (id) => findObjectById(id) || findConnectionById(id);
 
 export const setTool = (tool) => {
   state.tool = tool;
@@ -198,9 +202,9 @@ export const renameObjectId = (oldId, newId) => {
   const obj = findObjectById(oldId);
   if (!obj) return false;
   obj.id = newId;
-  state.map.connections.forEach((conn) => {
-    if (conn.from === oldId) conn.from = newId;
-    if (conn.to === oldId) conn.to = newId;
+  allConnections().forEach((conn) => {
+    if (conn.fromId === oldId) conn.fromId = newId;
+    if (conn.toId === oldId) conn.toId = newId;
   });
   if (state.selectedObjectId === oldId) state.selectedObjectId = newId;
   return true;
@@ -212,6 +216,7 @@ export const removeObject = (id) => {
     layer.objects = layer.objects.filter((obj) => obj.id !== id);
     if (layer.objects.length !== len) {
       state.map.connections = state.map.connections.filter((conn) => conn.from !== id && conn.to !== id);
+      layer.connections = (layer.connections || []).filter((conn) => conn.fromId !== id && conn.toId !== id);
       if (state.selectedObjectId === id) state.selectedObjectId = null;
       state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== id);
       return true;
@@ -226,13 +231,13 @@ export const selectObject = (id) => {
 };
 
 export const selectObjects = (ids) => {
-  const normalized = [...new Set(ids)].filter((id) => findObjectById(id));
+  const normalized = [...new Set(ids)].filter((id) => findSelectableById(id));
   state.selectedObjectIds = normalized;
   state.selectedObjectId = normalized[0] || null;
 };
 
 export const toggleObjectSelection = (id) => {
-  if (!findObjectById(id)) return;
+  if (!findSelectableById(id)) return;
   if (state.selectedObjectIds.includes(id)) {
     state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== id);
   } else {
@@ -299,9 +304,40 @@ export const setViewport = (nextViewport) => {
 
 export const addConnection = (fromId, toId) => {
   if (fromId === toId) return;
-  if (!findObjectById(fromId) || !findObjectById(toId)) return;
-  const exists = state.map.connections.some((conn) => conn.from === fromId && conn.to === toId);
-  if (!exists) state.map.connections.push({ from: fromId, to: toId });
+  const from = findObjectById(fromId);
+  const to = findObjectById(toId);
+  if (!from || !to) return;
+  if (from.layerId !== to.layerId) return;
+
+  const layer = state.map.layers.find((entry) => entry.id === from.layerId);
+  if (!layer) return;
+
+  const exists = (layer.connections || []).some((conn) => conn.fromId === fromId && conn.toId === toId);
+  if (exists) return;
+
+  const id = `conn_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+  layer.connections = layer.connections || [];
+  layer.connections.push({
+    id,
+    type: 'connection',
+    fromId,
+    toId,
+    layerId: layer.id
+  });
+};
+
+export const removeConnection = (connectionId) => {
+  for (const layer of state.map.layers) {
+    const current = layer.connections || [];
+    const next = current.filter((conn) => conn.id !== connectionId);
+    if (next.length !== current.length) {
+      layer.connections = next;
+      if (state.selectedObjectId === connectionId) state.selectedObjectId = null;
+      state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== connectionId);
+      return true;
+    }
+  }
+  return false;
 };
 
 export const serializeMap = () => JSON.stringify(state.map, null, 2);
@@ -324,6 +360,7 @@ export const validateAndNormalizeMap = (raw) => {
       id: layerId,
       name: String(layer.name || layerId),
       visible: layer.visible !== false,
+      connections: [],
       objects: Array.isArray(layer.objects)
         ? layer.objects
             .filter((obj) => obj && obj.id && (obj.type === 'circle' || obj.type === 'square' || obj.type === 'image'))
@@ -358,9 +395,44 @@ export const validateAndNormalizeMap = (raw) => {
   });
 
   const ids = new Set(map.layers.flatMap((layer) => layer.objects.map((obj) => obj.id)));
-  map.connections = Array.isArray(raw.connections)
-    ? raw.connections.filter((conn) => ids.has(conn.from) && ids.has(conn.to)).map((conn) => ({ from: conn.from, to: conn.to }))
-    : [];
+  const pushedByLayer = new Map(map.layers.map((layer) => [layer.id, layer]));
+
+  const sourceConnections = [
+    ...(Array.isArray(raw.connections) ? raw.connections : []),
+    ...map.layers.flatMap((layer, index) =>
+      Array.isArray(raw.layers[index]?.connections) ? raw.layers[index].connections : []
+    )
+  ];
+
+  sourceConnections.forEach((conn, index) => {
+    const fromId = String(conn.fromId || conn.from || '');
+    const toId = String(conn.toId || conn.to || '');
+    if (!ids.has(fromId) || !ids.has(toId)) return;
+
+    const fromObject = findObjectInMapById(map, fromId);
+    const toObject = findObjectInMapById(map, toId);
+    if (!fromObject || !toObject) return;
+    if (fromObject.layerId !== toObject.layerId) return;
+
+    const layerId = fromObject.layerId;
+    const layer = pushedByLayer.get(layerId);
+    if (!layer) return;
+
+    const id = String(conn.id || `conn_${index + 1}`);
+    if ((layer.connections || []).some((entry) => entry.id === id || (entry.fromId === fromId && entry.toId === toId))) return;
+
+    layer.connections.push({
+      id,
+      type: 'connection',
+      fromId,
+      toId,
+      layerId
+    });
+  });
+
+  map.connections = [];
 
   return map;
 };
+
+const findObjectInMapById = (map, id) => map.layers.flatMap((layer) => layer.objects).find((obj) => obj.id === id);
