@@ -38,6 +38,24 @@ export const worldPointFromMouse = (canvas, clientX, clientY) => {
   };
 };
 
+export const getObjectBounds = (obj) => {
+  if (obj.type === 'circle') {
+    return {
+      minX: obj.x - obj.radius,
+      minY: obj.y - obj.radius,
+      maxX: obj.x + obj.radius,
+      maxY: obj.y + obj.radius
+    };
+  }
+  const half = obj.size / 2;
+  return {
+    minX: obj.x - half,
+    minY: obj.y - half,
+    maxX: obj.x + half,
+    maxY: obj.y + half
+  };
+};
+
 export const hitTestObject = (worldX, worldY) => {
   const visibleLayers = new Set(getState().map.layers.filter((layer) => layer.visible).map((layer) => layer.id));
   const objects = allObjects().filter((obj) => visibleLayers.has(obj.layerId));
@@ -57,9 +75,65 @@ export const hitTestObject = (worldX, worldY) => {
   return null;
 };
 
+const drawPreview = (ctx, viewport, drag, tool) => {
+  if (drag.mode !== 'create') return;
+  const start = toScreen(drag.startX, drag.startY, viewport);
+  const current = toScreen(drag.currentX, drag.currentY, viewport);
+  const dx = current.x - start.x;
+  const dy = current.y - start.y;
+  const keepRatio = Boolean(drag.modShift);
+  const fromCorner = Boolean(drag.modAlt);
+
+  ctx.save();
+  ctx.strokeStyle = '#8cffea';
+  ctx.fillStyle = 'rgba(111, 255, 233, 0.15)';
+  ctx.setLineDash([7, 5]);
+
+  if (tool === 'create-circle') {
+    const radius = Math.max(4 * viewport.zoom, keepRatio ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy));
+    const centerX = fromCorner ? start.x + radius : start.x;
+    const centerY = fromCorner ? start.y + radius : start.y;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (tool === 'create-square') {
+    const side = keepRatio ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.max(Math.abs(dx), Math.abs(dy));
+    const size = Math.max(4 * viewport.zoom, side * 2);
+    const centerX = fromCorner ? start.x + (dx >= 0 ? size / 2 : -size / 2) : start.x;
+    const centerY = fromCorner ? start.y + (dy >= 0 ? size / 2 : -size / 2) : start.y;
+    ctx.beginPath();
+    ctx.rect(centerX - size / 2, centerY - size / 2, size, size);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.restore();
+};
+
+const drawMarquee = (ctx, viewport, drag) => {
+  if (drag.mode !== 'marquee') return;
+  const start = toScreen(drag.startX, drag.startY, viewport);
+  const current = toScreen(drag.currentX, drag.currentY, viewport);
+  const x = Math.min(start.x, current.x);
+  const y = Math.min(start.y, current.y);
+  const width = Math.abs(current.x - start.x);
+  const height = Math.abs(current.y - start.y);
+
+  ctx.save();
+  ctx.strokeStyle = '#ffd166';
+  ctx.fillStyle = 'rgba(255, 209, 102, 0.1)';
+  ctx.setLineDash([5, 4]);
+  ctx.strokeRect(x, y, width, height);
+  ctx.fillRect(x, y, width, height);
+  ctx.restore();
+};
+
 export const render = (canvas) => {
   const ctx = canvas.getContext('2d');
-  const { map, selectedObjectId, pendingConnectionFrom } = getState();
+  const { map, selectedObjectIds, pendingConnectionFrom, drag, tool } = getState();
   const { viewport } = map;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -102,7 +176,7 @@ export const render = (canvas) => {
     if (!layer.visible) continue;
     for (const obj of layer.objects) {
       const pos = toScreen(obj.x, obj.y, viewport);
-      const isSelected = obj.id === selectedObjectId;
+      const isSelected = selectedObjectIds.includes(obj.id);
       const isConnectionStart = obj.id === pendingConnectionFrom;
       const stroke = isSelected ? '#ffd166' : isConnectionStart ? '#a4ff8a' : '#74a2ff';
 
@@ -128,8 +202,13 @@ export const render = (canvas) => {
 
       ctx.fillStyle = '#e9edf7';
       ctx.font = '12px monospace';
-      ctx.fillText(obj.id, pos.x + 8, pos.y - 8);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(obj.id, pos.x, pos.y);
       ctx.restore();
     }
   }
+
+  drawPreview(ctx, viewport, drag, tool);
+  drawMarquee(ctx, viewport, drag);
 };

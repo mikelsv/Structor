@@ -61,12 +61,17 @@ export const renderLayers = () => {
     item.className = `layer-item ${activeLayerId === layer.id ? 'active' : ''}`;
 
     const nameButton = document.createElement('button');
+    nameButton.type = 'button';
     nameButton.textContent = layer.id;
     nameButton.addEventListener('click', () => setActiveLayer(layer.id));
 
     const toggleButton = document.createElement('button');
+    toggleButton.type = 'button';
     toggleButton.textContent = layer.visible ? 'Hide' : 'Show';
-    toggleButton.addEventListener('click', () => toggleLayerVisibility(layer.id));
+    toggleButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleLayerVisibility(layer.id);
+    });
 
     const count = document.createElement('span');
     count.textContent = `${layer.objects.length}`;
@@ -78,8 +83,11 @@ export const renderLayers = () => {
 
 export const renderConnections = () => {
   const { map } = getState();
+  const visibleObjectIds = new Set(
+    map.layers.filter((layer) => layer.visible).flatMap((layer) => layer.objects.map((obj) => obj.id))
+  );
   refs.connectionsList.innerHTML = '';
-  for (const conn of map.connections) {
+  for (const conn of map.connections.filter((entry) => visibleObjectIds.has(entry.from) && visibleObjectIds.has(entry.to))) {
     const item = document.createElement('li');
     item.textContent = `${conn.from} → ${conn.to}`;
     refs.connectionsList.append(item);
@@ -87,7 +95,7 @@ export const renderConnections = () => {
 };
 
 export const renderProperties = () => {
-  const { selectedObjectId, map } = getState();
+  const { selectedObjectId, selectedObjectIds, map } = getState();
   const selected = selectedObjectId ? findObjectById(selectedObjectId) : null;
 
   const form = refs.propertiesForm;
@@ -101,7 +109,7 @@ export const renderProperties = () => {
   });
 
   if (!selected) {
-    refs.selectionState.textContent = 'Nothing selected';
+    refs.selectionState.textContent = selectedObjectIds.length ? `${selectedObjectIds.length} selected` : 'Nothing selected';
     form.hidden = true;
     return;
   }

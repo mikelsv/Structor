@@ -17,7 +17,9 @@ const redraw = () => {
   renderLayers();
   renderProperties();
   renderConnections();
-  refs.backgroundPath.value = getState().map.background;
+  if (document.activeElement !== refs.backgroundPath && refs.backgroundPath.value !== getState().map.background) {
+    refs.backgroundPath.value = getState().map.background;
+  }
   requestAnimationFrame(redraw);
 };
 

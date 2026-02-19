@@ -23,6 +23,7 @@ const state = {
   activeLayerId: DEFAULT_LAYER_ID,
   tool: 'select',
   selectedObjectId: null,
+  selectedObjectIds: [],
   pendingConnectionFrom: null,
   drag: {
     mode: null,
@@ -84,7 +85,25 @@ export const createObject = (type, x, y) => {
   if (type === 'circle') base.radius = 30;
   if (type === 'square') base.size = 50;
   upsertObject(base);
-  state.selectedObjectId = id;
+  selectObject(id);
+  return base;
+};
+
+export const createObjectWithBounds = (type, payload) => {
+  const id = `node_${state.ids.object++}`;
+  const base = { type, id, layerId: state.activeLayerId };
+  if (type === 'circle') {
+    base.x = payload.x;
+    base.y = payload.y;
+    base.radius = payload.radius;
+  }
+  if (type === 'square') {
+    base.x = payload.x;
+    base.y = payload.y;
+    base.size = payload.size;
+  }
+  upsertObject(base);
+  selectObject(id);
   return base;
 };
 
@@ -108,6 +127,7 @@ export const removeObject = (id) => {
     if (layer.objects.length !== len) {
       state.map.connections = state.map.connections.filter((conn) => conn.from !== id && conn.to !== id);
       if (state.selectedObjectId === id) state.selectedObjectId = null;
+      state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== id);
       return true;
     }
   }
@@ -116,12 +136,30 @@ export const removeObject = (id) => {
 
 export const selectObject = (id) => {
   state.selectedObjectId = id;
+  state.selectedObjectIds = id ? [id] : [];
+};
+
+export const selectObjects = (ids) => {
+  const normalized = [...new Set(ids)].filter((id) => findObjectById(id));
+  state.selectedObjectIds = normalized;
+  state.selectedObjectId = normalized[0] || null;
+};
+
+export const toggleObjectSelection = (id) => {
+  if (!findObjectById(id)) return;
+  if (state.selectedObjectIds.includes(id)) {
+    state.selectedObjectIds = state.selectedObjectIds.filter((entry) => entry !== id);
+  } else {
+    state.selectedObjectIds = [...state.selectedObjectIds, id];
+  }
+  state.selectedObjectId = state.selectedObjectIds[0] || null;
 };
 
 export const setMap = (mapData) => {
   state.map = mapData;
   state.activeLayerId = mapData.layers[0]?.id || DEFAULT_LAYER_ID;
   state.selectedObjectId = null;
+  state.selectedObjectIds = [];
   state.pendingConnectionFrom = null;
 
   const objectIds = allObjects().map((obj) => Number.parseInt(String(obj.id).split('_')[1], 10)).filter(Number.isFinite);
