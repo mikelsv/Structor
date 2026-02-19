@@ -25,6 +25,7 @@ let layerDragState = {
   overIndex: -1,
   dropSide: 'after'
 };
+let editingLayerId = null;
 
 export const refs = {
   canvas: byId('editor-canvas'),
@@ -158,6 +159,11 @@ export const renderLayersUI = () => {
     });
 
     main.addEventListener('dragstart', (event) => {
+      if (main.dataset.editing === '1' || editingLayerId) {
+        event.preventDefault();
+        return;
+      }
+
       const dragEvent = event;
       layerDragState.draggingLayerId = layer.id;
       layerDragState.fromIndex = index;
@@ -169,6 +175,7 @@ export const renderLayersUI = () => {
     });
 
     main.addEventListener('dragend', () => {
+      if (editingLayerId) return;
       resetLayerDragState();
       renderLayersUI();
     });
@@ -183,6 +190,9 @@ export const renderLayersUI = () => {
       input.type = 'text';
       input.className = 'layer-name-input';
       input.value = layer.name;
+      editingLayerId = layer.id;
+      main.dataset.editing = '1';
+      main.draggable = false;
       main.replaceChild(input, nameButton);
       input.focus();
       input.select();
@@ -191,6 +201,9 @@ export const renderLayersUI = () => {
       const commit = () => {
         if (isHandled) return;
         isHandled = true;
+        editingLayerId = null;
+        delete main.dataset.editing;
+        main.draggable = true;
         const success = renameLayer(layer.id, input.value);
         if (!success) {
           renderLayersUI();
@@ -201,9 +214,18 @@ export const renderLayersUI = () => {
       const cancel = () => {
         if (isHandled) return;
         isHandled = true;
+        editingLayerId = null;
+        delete main.dataset.editing;
+        main.draggable = true;
         renderLayersUI();
       };
 
+      input.addEventListener('mousedown', (event) => {
+        event.stopPropagation();
+      });
+      input.addEventListener('mousemove', (event) => {
+        event.stopPropagation();
+      });
       input.addEventListener('keydown', (event) => {
         event.stopPropagation();
         if (event.key === 'Enter') {
@@ -236,7 +258,7 @@ export const renderLayersUI = () => {
 
     item.addEventListener('dragover', (event) => {
       event.preventDefault();
-      if (!layerDragState.draggingLayerId) return;
+      if (!layerDragState.draggingLayerId || editingLayerId) return;
       const bounds = item.getBoundingClientRect();
       const offsetY = event.clientY - bounds.top;
       layerDragState.overIndex = index;
@@ -252,7 +274,7 @@ export const renderLayersUI = () => {
     item.addEventListener('drop', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (layerDragState.fromIndex < 0 || layerDragState.overIndex < 0) return;
+      if (layerDragState.fromIndex < 0 || layerDragState.overIndex < 0 || editingLayerId) return;
 
       let toIndex = layerDragState.overIndex;
       if (layerDragState.dropSide === 'after') toIndex += 1;
