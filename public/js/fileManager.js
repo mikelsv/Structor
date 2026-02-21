@@ -1,7 +1,9 @@
 import { createEmptyMap, createImageObject, getMapFilePath, getState, setMap, setMapFilePath, validateAndNormalizeMap } from './state.js';
+import { exportHistory, importHistory, pushHistory } from './history.js';
 
 export const createNewMap = () => {
   setMap(createEmptyMap());
+  importHistory({ past: [], future: [], limit: 50 });
   setMapFilePath('');
 };
 
@@ -24,7 +26,10 @@ export const saveMapToDisk = async (filePath) => {
   if (!filePath) throw new Error('File path is required');
   await requestJson('/save', {
     filePath,
-    data: getState().map
+    data: {
+      scene: getState().map,
+      history: exportHistory()
+    }
   });
   setMapFilePath(filePath);
 };
@@ -32,8 +37,11 @@ export const saveMapToDisk = async (filePath) => {
 export const loadMapFromDisk = async (filePath) => {
   if (!filePath) throw new Error('File path is required');
   const response = await requestJson('/load', { filePath });
-  const map = validateAndNormalizeMap(response.data);
+  const rawData = response.data;
+  const sceneData = rawData?.scene || rawData;
+  const map = validateAndNormalizeMap(sceneData);
   setMap(map);
+  importHistory(rawData?.history || { past: [], future: [], limit: 50 });
   setMapFilePath(filePath);
 };
 
@@ -74,7 +82,7 @@ export const uploadImageForMap = async ({ file, x, y }) => {
   }
 
   const size = await readImageMetadata(file);
-  createImageObject({
+  const created = createImageObject({
     id: imageId,
     file: responseBody.file,
     x,
@@ -82,6 +90,7 @@ export const uploadImageForMap = async ({ file, x, y }) => {
     width: size.width,
     height: size.height
   });
+  pushHistory('addObject', { object: JSON.parse(JSON.stringify(created)) }, { label: `Add ${created.id}` });
 };
 
 export const buildMapImageUrl = (fileName) => {

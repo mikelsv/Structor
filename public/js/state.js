@@ -303,27 +303,45 @@ export const setViewport = (nextViewport) => {
 };
 
 export const addConnection = (fromId, toId) => {
-  if (fromId === toId) return;
+  if (fromId === toId) return null;
   const from = findObjectById(fromId);
   const to = findObjectById(toId);
-  if (!from || !to) return;
-  if (from.layerId !== to.layerId) return;
+  if (!from || !to) return null;
+  if (from.layerId !== to.layerId) return null;
 
   const layer = state.map.layers.find((entry) => entry.id === from.layerId);
-  if (!layer) return;
+  if (!layer) return null;
 
   const exists = (layer.connections || []).some((conn) => conn.fromId === fromId && conn.toId === toId);
-  if (exists) return;
+  if (exists) return null;
 
   const id = `conn_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   layer.connections = layer.connections || [];
-  layer.connections.push({
+  const connection = {
     id,
     type: 'connection',
     fromId,
     toId,
     layerId: layer.id
+  };
+  layer.connections.push(connection);
+  return connection;
+};
+
+export const addConnectionRecord = (connection) => {
+  if (!connection?.id || !connection?.fromId || !connection?.toId || !connection?.layerId) return false;
+  const layer = state.map.layers.find((entry) => entry.id === connection.layerId);
+  if (!layer) return false;
+  layer.connections = layer.connections || [];
+  if (layer.connections.some((entry) => entry.id === connection.id)) return false;
+  layer.connections.push({
+    id: connection.id,
+    type: 'connection',
+    fromId: connection.fromId,
+    toId: connection.toId,
+    layerId: connection.layerId
   });
+  return true;
 };
 
 export const removeConnection = (connectionId) => {

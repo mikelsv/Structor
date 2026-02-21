@@ -114,7 +114,8 @@ select {
 }
 
 #layers-list,
-#connections-list {
+#connections-list,
+#history-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -252,4 +253,28 @@ select {
 
 .connections-section {
   margin-top: 18px;
+}
+
+
+.history-section {
+  margin-top: 18px;
+}
+
+.history-item {
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: var(--muted);
+}
+
+.history-item:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.history-item.active {
+  border-color: var(--accent);
+  background: rgba(94, 161, 255, 0.12);
+  color: var(--text);
 }

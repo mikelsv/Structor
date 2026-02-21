@@ -2,6 +2,7 @@ import { createNewMap, loadMapFromDisk, saveMapToDisk } from './js/fileManager.j
 import { bindCanvasInteractions } from './js/interactions.js';
 import { render } from './js/renderer.js';
 import { findSelectableById, getState } from './js/state.js';
+import { history } from './js/history.js';
 import {
   attachLayerCreationPrompt,
   bindPropertiesForm,
@@ -9,7 +10,8 @@ import {
   refs,
   renderConnections,
   renderLayers,
-  renderProperties
+  renderProperties,
+  renderHistory
 } from './js/ui.js';
 
 const getUiSignature = () => {
@@ -23,7 +25,8 @@ const getUiSignature = () => {
     : `none:${selectedObjectIds.join(',')}`;
 
   const connectionCount = map.layers.reduce((total, layer) => total + (layer.connections || []).length, 0);
-  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${connectionCount}#${cursor.worldX}:${cursor.worldY}`;
+  const historySignature = `${history.getCurrentIndex()}:${history.past.length}:${history.future.length}:${history.past.map((entry) => entry.id).join(',')}`;
+  return `${activeLayerId}#${layerSignature}#${selectedSignature}#${connectionCount}#${cursor.worldX}:${cursor.worldY}#${historySignature}`;
 };
 
 let prevUiSignature = '';
@@ -37,6 +40,7 @@ const redraw = () => {
     renderLayers();
     renderProperties();
     renderConnections();
+    renderHistory();
   }
 
   requestAnimationFrame(redraw);
