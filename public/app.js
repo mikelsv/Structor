@@ -25,7 +25,7 @@ const getUiSignature = () => {
     : `none:${selectedObjectIds.join(',')}`;
 
   const connectionCount = map.layers.reduce((total, layer) => total + (layer.connections || []).length, 0);
-  const historySignature = `${history.getCurrentIndex()}:${history.past.length}:${history.future.length}:${history.past.map((entry) => entry.id).join(',')}`;
+  const historySignature = `${history.getCurrentIndex()}:${history.past.length}:${history.future.length}:${history.getTimeline().map((entry) => entry.id).join(',')}`;
   return `${activeLayerId}#${layerSignature}#${selectedSignature}#${connectionCount}#${cursor.worldX}:${cursor.worldY}#${historySignature}`;
 };
 

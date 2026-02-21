@@ -30,6 +30,30 @@ let layerDragState = {
 };
 let editingLayerId = null;
 
+const panelVisibility = {
+  connections: true,
+  history: true
+};
+
+const syncPanelToggleButtons = () => {
+  if (refs.connectionsToggle) refs.connectionsToggle.textContent = panelVisibility.connections ? 'Hide' : 'Show';
+  if (refs.historyToggle) refs.historyToggle.textContent = panelVisibility.history ? 'Hide' : 'Show';
+  if (refs.connectionsContent) refs.connectionsContent.hidden = !panelVisibility.connections;
+  if (refs.historyContent) refs.historyContent.hidden = !panelVisibility.history;
+};
+
+const bindSidePanelToggles = () => {
+  refs.connectionsToggle?.addEventListener('click', () => {
+    panelVisibility.connections = !panelVisibility.connections;
+    syncPanelToggleButtons();
+  });
+  refs.historyToggle?.addEventListener('click', () => {
+    panelVisibility.history = !panelVisibility.history;
+    syncPanelToggleButtons();
+  });
+  syncPanelToggleButtons();
+};
+
 export const refs = {
   canvas: byId('editor-canvas'),
   layersList: byId('layers-list'),
@@ -38,7 +62,11 @@ export const refs = {
   selectionState: byId('selection-state'),
   hint: byId('editor-hint'),
   mapPath: byId('map-path'),
-  historyList: byId('history-list')
+  historyList: byId('history-list'),
+  connectionsToggle: byId('toggle-connections'),
+  historyToggle: byId('toggle-history'),
+  connectionsContent: byId('connections-content'),
+  historyContent: byId('history-content')
 };
 
 const getToolLabel = (tool) => ({
@@ -192,6 +220,7 @@ export const bindToolbar = ({ onAddLayer, onNewMap, onSave, onLoad }) => {
   byId('new-map').addEventListener('click', onNewMap);
   byId('save-map').addEventListener('click', onSave);
   byId('load-map').addEventListener('click', onLoad);
+  bindSidePanelToggles();
 };
 
 export const renderLayersUI = () => {
@@ -407,11 +436,13 @@ export const renderProperties = () => {
 
 export const renderHistory = () => {
   const currentIndex = history.getCurrentIndex();
+  const timeline = history.getTimeline();
   refs.historyList.innerHTML = '';
 
-  history.past.forEach((action, index) => {
+  timeline.forEach((action, index) => {
     const item = document.createElement('li');
-    item.className = `history-item ${index === currentIndex ? 'active' : ''}`;
+    const stateClass = index === currentIndex ? 'active' : index > currentIndex ? 'inactive' : '';
+    item.className = `history-item ${stateClass}`.trim();
     const time = new Date(action.timestamp).toLocaleTimeString();
     item.textContent = `[${index + 1}] ${action.label} (${time})`;
     item.addEventListener('click', () => history.goTo(index));

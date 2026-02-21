@@ -96,14 +96,24 @@
             <button type="button" id="delete-object" class="danger">Delete Object</button>
           </form>
 
-          <section class="connections-section">
-            <h4>Connections</h4>
-            <ul id="connections-list"></ul>
+          <section class="connections-section panel-section">
+            <header class="section-header">
+              <h4>Connections</h4>
+              <button type="button" id="toggle-connections" class="section-toggle">Hide</button>
+            </header>
+            <div class="section-content" id="connections-content">
+              <ul id="connections-list"></ul>
+            </div>
           </section>
 
-          <section class="history-section">
-            <h4>History</h4>
-            <ul id="history-list"></ul>
+          <section class="history-section panel-section">
+            <header class="section-header">
+              <h4>History</h4>
+              <button type="button" id="toggle-history" class="section-toggle">Hide</button>
+            </header>
+            <div class="section-content" id="history-content">
+              <ul id="history-list"></ul>
+            </div>
           </section>
         </aside>
       </main>

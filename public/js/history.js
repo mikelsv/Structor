@@ -52,6 +52,8 @@ export class HistoryManager {
   }
 
   goTo(index) {
+    const maxIndex = this.past.length + this.future.length - 1;
+    if (index < -1 || index > maxIndex) return;
     const current = this.past.length - 1;
     if (index === current) return;
     if (index < current) {
@@ -59,6 +61,10 @@ export class HistoryManager {
       return;
     }
     for (let i = current; i < index; i += 1) this.redo();
+  }
+
+  getTimeline() {
+    return [...this.past, ...[...this.future].reverse()];
   }
 
   clear() {
@@ -79,6 +85,7 @@ export class HistoryManager {
     this.past = Array.isArray(raw?.past) ? raw.past.map(deserializeAction).filter(Boolean) : [];
     this.future = Array.isArray(raw?.future) ? raw.future.map(deserializeAction).filter(Boolean) : [];
     if (this.past.length > this.limit) this.past = this.past.slice(-this.limit);
+    if (this.future.length > this.limit) this.future = this.future.slice(-this.limit);
   }
 
   getCurrentIndex() {
