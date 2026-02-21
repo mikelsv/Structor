@@ -14,6 +14,7 @@ import {
   toggleObjectSelection
 } from './state.js';
 import { uploadImageForMap } from './fileManager.js';
+import { getConnectionSnapshot, history, pushHistory } from './history.js';
 import { getObjectBounds, hitTestConnection, hitTestObject, worldPointFromMouse } from './renderer.js';
 
 const isInteractiveElement = (target) =>
@@ -199,11 +200,15 @@ export const deleteSelected = () => {
   const selected = findSelectableById(getState().selectedObjectId);
   if (!selected) return;
   if (selected.type === 'connection') {
+    const snapshot = getConnectionSnapshot(selected.id);
     removeConnection(selected.id);
+    if (snapshot) pushHistory('deleteConnection', { connection: snapshot }, { label: `Delete connection ${snapshot.fromId} → ${snapshot.toId}` });
     selectObject(null);
     return;
   }
+  const snapshot = JSON.parse(JSON.stringify(selected));
   removeObject(selected.id);
+  pushHistory('deleteObject', { object: snapshot }, { label: `Delete ${snapshot.id}` });
   selectObject(null);
 };
 
@@ -313,7 +318,8 @@ export const bindCanvasInteractions = (canvas) => {
       const end = { x: state.drag.currentX, y: state.drag.currentY };
       const built = buildObjectAtDrag(state.tool, start, end, state.drag.modShift, state.drag.modAlt);
       if (built) {
-        createObjectWithBounds(built.type, built);
+        const created = createObjectWithBounds(built.type, built);
+        pushHistory('addObject', { object: JSON.parse(JSON.stringify(created)) }, { label: `Add ${created.id}` });
       }
     }
 
@@ -324,7 +330,8 @@ export const bindCanvasInteractions = (canvas) => {
       const toId = state.drag.connectionToId || (hovered && hovered.id !== fromId ? hovered.id : null);
       const to = toId ? findObjectById(toId) : null;
       if (fromId && toId && from && to && from.layerId === to.layerId) {
-        addConnection(fromId, toId);
+        const created = addConnection(fromId, toId);
+        if (created) pushHistory('addConnection', { connection: JSON.parse(JSON.stringify(created)) });
         selectObject(toId);
       }
       state.pendingConnectionFrom = null;
@@ -333,6 +340,16 @@ export const bindCanvasInteractions = (canvas) => {
     }
 
     state.drag.mode = null;
+    if (state.drag.origins?.length) {
+      state.drag.origins.forEach((origin) => {
+        const obj = findObjectById(origin.id);
+        if (!obj) return;
+        const to = { x: Math.round(obj.x), y: Math.round(obj.y) };
+        const from = { x: Math.round(origin.x), y: Math.round(origin.y) };
+        if (to.x === from.x && to.y === from.y) return;
+        pushHistory('moveObject', { objectId: origin.id, from, to }, { label: `Move ${origin.id}` });
+      });
+    }
     state.drag.objectId = null;
     state.drag.origins = null;
   });
@@ -381,6 +398,18 @@ export const bindCanvasInteractions = (canvas) => {
     if (event.key === 'Delete') {
       event.preventDefault();
       deleteSelected();
+      return;
+    }
+
+    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      history.undo();
+      return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      history.redo();
     }
   });
 };

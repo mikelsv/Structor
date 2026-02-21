@@ -84,6 +84,10 @@ select {
 .properties-panel {
   border-right: none;
   border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
 }
 
 .editor-area {
@@ -114,7 +118,8 @@ select {
 }
 
 #layers-list,
-#connections-list {
+#connections-list,
+#history-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -250,6 +255,62 @@ select {
   padding: 6px;
 }
 
-.connections-section {
-  margin-top: 18px;
+.panel-section {
+  margin-top: 6px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(12, 18, 29, 0.35);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-header h4 {
+  margin: 0;
+}
+
+.section-toggle {
+  border: 1px solid var(--border);
+  background: #283149;
+  color: var(--text);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.section-content {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.history-item {
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: var(--muted);
+}
+
+.history-item:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.history-item.active {
+  border-color: var(--accent);
+  background: rgba(94, 161, 255, 0.12);
+  color: var(--text);
+}
+
+.history-item.inactive {
+  opacity: 0.6;
 }

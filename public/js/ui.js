@@ -17,6 +17,7 @@ import {
   updateObjectLayer,
   upsertObject
 } from './state.js';
+import { history, pushHistory, getConnectionSnapshot } from './history.js';
 import { getObjectBounds } from './renderer.js';
 
 const byId = (id) => document.getElementById(id);
@@ -28,6 +29,31 @@ let layerDragState = {
   dropSide: 'after'
 };
 let editingLayerId = null;
+let lastHistoryAutoScrollKey = '';
+
+const panelVisibility = {
+  connections: true,
+  history: true
+};
+
+const syncPanelToggleButtons = () => {
+  if (refs.connectionsToggle) refs.connectionsToggle.textContent = panelVisibility.connections ? 'Hide' : 'Show';
+  if (refs.historyToggle) refs.historyToggle.textContent = panelVisibility.history ? 'Hide' : 'Show';
+  if (refs.connectionsContent) refs.connectionsContent.hidden = !panelVisibility.connections;
+  if (refs.historyContent) refs.historyContent.hidden = !panelVisibility.history;
+};
+
+const bindSidePanelToggles = () => {
+  refs.connectionsToggle?.addEventListener('click', () => {
+    panelVisibility.connections = !panelVisibility.connections;
+    syncPanelToggleButtons();
+  });
+  refs.historyToggle?.addEventListener('click', () => {
+    panelVisibility.history = !panelVisibility.history;
+    syncPanelToggleButtons();
+  });
+  syncPanelToggleButtons();
+};
 
 export const refs = {
   canvas: byId('editor-canvas'),
@@ -36,7 +62,12 @@ export const refs = {
   propertiesForm: byId('properties-form'),
   selectionState: byId('selection-state'),
   hint: byId('editor-hint'),
-  mapPath: byId('map-path')
+  mapPath: byId('map-path'),
+  historyList: byId('history-list'),
+  connectionsToggle: byId('toggle-connections'),
+  historyToggle: byId('toggle-history'),
+  connectionsContent: byId('connections-content'),
+  historyContent: byId('history-content')
 };
 
 const getToolLabel = (tool) => ({
@@ -190,6 +221,7 @@ export const bindToolbar = ({ onAddLayer, onNewMap, onSave, onLoad }) => {
   byId('new-map').addEventListener('click', onNewMap);
   byId('save-map').addEventListener('click', onSave);
   byId('load-map').addEventListener('click', onLoad);
+  bindSidePanelToggles();
 };
 
 export const renderLayersUI = () => {
@@ -335,9 +367,11 @@ export const renderLayersUI = () => {
       if (layerDragState.dropSide === 'after') toIndex += 1;
       if (layerDragState.fromIndex < toIndex) toIndex -= 1;
 
-      const changed = reorderLayers(layerDragState.fromIndex, toIndex);
+      const fromIndex = layerDragState.fromIndex;
+      const changed = reorderLayers(fromIndex, toIndex);
       item.classList.remove('drop-before', 'drop-after');
       if (changed) {
+        pushHistory('changeLayerOrder', { fromIndex, toIndex }, { label: `Reorder layer ${layer.name}` });
         renderLayersUI();
       }
     });
@@ -351,7 +385,9 @@ export const renderLayersUI = () => {
     upButton.disabled = index === 0;
     upButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      moveLayerUp(layer.id);
+      const fromIndex = index;
+      const changed = moveLayerUp(layer.id);
+      if (changed) pushHistory('changeLayerOrder', { fromIndex, toIndex: fromIndex - 1 }, { label: `Reorder layer ${layer.name}` });
     });
 
     const downButton = document.createElement('button');
@@ -360,7 +396,9 @@ export const renderLayersUI = () => {
     downButton.disabled = index === map.layers.length - 1;
     downButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      moveLayerDown(layer.id);
+      const fromIndex = index;
+      const changed = moveLayerDown(layer.id);
+      if (changed) pushHistory('changeLayerOrder', { fromIndex, toIndex: fromIndex + 1 }, { label: `Reorder layer ${layer.name}` });
     });
 
     const count = document.createElement('span');
@@ -396,6 +434,33 @@ export const renderProperties = () => {
   renderPropertiesPanel(selectedObjects);
 };
 
+
+export const renderHistory = () => {
+  const currentIndex = history.getCurrentIndex();
+  const timeline = history.getTimeline();
+  const activeActionId = currentIndex >= 0 ? timeline[currentIndex]?.id || '' : '';
+  const autoScrollKey = `${currentIndex}:${timeline.length}:${activeActionId}`;
+  refs.historyList.innerHTML = '';
+
+  let activeItem = null;
+
+  timeline.forEach((action, index) => {
+    const item = document.createElement('li');
+    const stateClass = index === currentIndex ? 'active' : index > currentIndex ? 'inactive' : '';
+    item.className = `history-item ${stateClass}`.trim();
+    const time = new Date(action.timestamp).toLocaleTimeString();
+    item.textContent = `[${index + 1}] ${action.label} (${time})`;
+    item.addEventListener('click', () => history.goTo(index));
+    if (index === currentIndex) activeItem = item;
+    refs.historyList.append(item);
+  });
+
+  if (autoScrollKey !== lastHistoryAutoScrollKey && activeItem && refs.historyContent && !refs.historyContent.hidden) {
+    activeItem.scrollIntoView({ block: 'nearest' });
+  }
+  lastHistoryAutoScrollKey = autoScrollKey;
+};
+
 export const bindPropertiesForm = () => {
   refs.propertiesForm.addEventListener('input', (event) => {
     const selected = findSelectableById(getState().selectedObjectId);
@@ -426,6 +491,7 @@ export const bindPropertiesForm = () => {
       if (selected.type === 'square') updated.size = Math.max(updated.width, updated.height);
     }
 
+    const before = JSON.parse(JSON.stringify(selected));
     if (updated.id !== selected.id) {
       const success = renameObjectId(selected.id, updated.id);
       if (!success) {
@@ -435,19 +501,30 @@ export const bindPropertiesForm = () => {
       selectObject(updated.id);
     }
     upsertObject(updated);
+    pushHistory('updateProperty', { before, after: JSON.parse(JSON.stringify(updated)) }, { label: `Update ${updated.id}` });
   });
 
   refs.propertiesForm.elements.layerId.addEventListener('change', (event) => {
     const selected = findSelectableById(getState().selectedObjectId);
     if (!selected || selected.type === 'connection') return;
+    const before = JSON.parse(JSON.stringify(selected));
     updateObjectLayer(selected.id, event.target.value);
+    const after = findObjectById(selected.id);
+    if (after) pushHistory('updateProperty', { before, after: JSON.parse(JSON.stringify(after)) }, { label: `Move ${selected.id} to layer` });
   });
 
   byId('delete-object').addEventListener('click', () => {
     const selected = findSelectableById(getState().selectedObjectId);
     if (!selected) return;
-    if (selected.type === 'connection') removeConnection(selected.id);
-    else removeObject(selected.id);
+    if (selected.type === 'connection') {
+      const snapshot = getConnectionSnapshot(selected.id);
+      removeConnection(selected.id);
+      if (snapshot) pushHistory('deleteConnection', { connection: snapshot }, { label: `Delete connection ${snapshot.fromId} → ${snapshot.toId}` });
+      return;
+    }
+    const snapshot = JSON.parse(JSON.stringify(selected));
+    removeObject(selected.id);
+    pushHistory('deleteObject', { object: snapshot }, { label: `Delete ${snapshot.id}` });
   });
 };
 
