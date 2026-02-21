@@ -29,6 +29,7 @@ let layerDragState = {
   dropSide: 'after'
 };
 let editingLayerId = null;
+let lastHistoryAutoScrollKey = '';
 
 const panelVisibility = {
   connections: true,
@@ -437,7 +438,11 @@ export const renderProperties = () => {
 export const renderHistory = () => {
   const currentIndex = history.getCurrentIndex();
   const timeline = history.getTimeline();
+  const activeActionId = currentIndex >= 0 ? timeline[currentIndex]?.id || '' : '';
+  const autoScrollKey = `${currentIndex}:${timeline.length}:${activeActionId}`;
   refs.historyList.innerHTML = '';
+
+  let activeItem = null;
 
   timeline.forEach((action, index) => {
     const item = document.createElement('li');
@@ -446,8 +451,14 @@ export const renderHistory = () => {
     const time = new Date(action.timestamp).toLocaleTimeString();
     item.textContent = `[${index + 1}] ${action.label} (${time})`;
     item.addEventListener('click', () => history.goTo(index));
+    if (index === currentIndex) activeItem = item;
     refs.historyList.append(item);
   });
+
+  if (autoScrollKey !== lastHistoryAutoScrollKey && activeItem && refs.historyContent && !refs.historyContent.hidden) {
+    activeItem.scrollIntoView({ block: 'nearest' });
+  }
+  lastHistoryAutoScrollKey = autoScrollKey;
 };
 
 export const bindPropertiesForm = () => {
